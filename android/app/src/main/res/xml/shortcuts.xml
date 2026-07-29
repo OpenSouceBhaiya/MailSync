@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="scan_background"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_scan"
+        android:shortcutShortLabel="@string/shortcut_scan_bg_short"
+        android:shortcutLongLabel="@string/shortcut_scan_bg_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.mailsync.app"
+            android:targetClass="com.mailsync.app.ui.BackgroundScanActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="bug_report"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_bug"
+        android:shortcutShortLabel="@string/shortcut_bug_short"
+        android:shortcutLongLabel="@string/shortcut_bug_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.mailsync.app"
+            android:targetClass="com.mailsync.app.MainActivity"
+            android:data="gmailotpsyncer://bug_report" />
+    </shortcut>
+
+
+</shortcuts>

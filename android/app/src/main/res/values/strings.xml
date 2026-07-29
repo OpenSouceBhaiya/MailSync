@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">MailSync</string>
+    <string name="shortcut_scan_bg_short">Scan (Background)</string>
+    <string name="shortcut_scan_bg_long">Scan silently in background</string>
+    <string name="shortcut_bug_short">Bugs or any issues?</string>
+    <string name="shortcut_bug_long">Let us know here!</string>
+</resources>

@@ -1,0 +1,19 @@
+# Normalise line endings to LF in the repository for cross-platform consistency.
+# Windows developers will have CRLF in their working copies (via core.autocrlf),
+# but the repo itself stores LF only.
+
+* text=auto eol=lf
+
+# Force LF for scripts even on Windows (shell scripts break with CRLF).
+*.sh   text eol=lf
+*.js   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.env* text eol=lf
+
+# Binary files — never modify line endings.
+*.db   binary
+*.wasm binary
+*.png  binary
+*.jpg  binary
+*.keystore binary
