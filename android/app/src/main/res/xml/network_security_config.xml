@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+  network_security_config.xml
+  
+  What this file does:
+  This enforces strict HTTPS-only communication for the entire app. 
+  If the app accidentally tries to make a plaintext HTTP request to a remote server,
+  Android will instantly kill the connection and throw an error.
+  
+  The ONLY exception is the local-link (127.0.0.1 / 10.0.2.2 / localhost), 
+  which is permitted so you can test the app against your local dev server
+  before deploying it to a VPS or Railway.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
