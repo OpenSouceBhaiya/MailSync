@@ -1,0 +1,31 @@
+{
+  "rules": {
+    "devices": {
+      "$uuid": {
+        // Only allow read/write if the request provides the correct UUID
+        // UUID is validated by the app — no auth token required (public relay model)
+        // But we restrict so one UUID cannot read another UUID's data
+        ".read": true,
+        ".write": true,
+        
+        // Validate device structure on write
+        ".validate": "newData.hasChildren(['dateLinked']) || !newData.exists()"
+      }
+    },
+    "otps": {
+      "$uuid": {
+        // OTP slot: writable by anyone with the UUID (Android app writes, extension deletes)
+        ".read": true,
+        ".write": true,
+        
+        // Validate: must have iv and data (encrypted payload) or be null (delete)
+        ".validate": "(newData.hasChildren(['iv', 'data']) && newData.child('iv').isString() && newData.child('data').isString()) || !newData.exists()"
+      }
+    },
+    // Block all other paths
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

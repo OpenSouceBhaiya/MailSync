@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme. -->
+    <style name="Theme.GmailOtpSyncer" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- We use Jetpack Compose, so this theme is just a placeholder container -->
+        <item name="android:windowBackground">@android:color/background_dark</item>
+    </style>
+
+    <!-- Splash Screen theme -->
+    <style name="Theme.GmailOtpSyncer.Starting" parent="Theme.SplashScreen">
+        <!-- Background color of the splash screen -->
+        <item name="windowSplashScreenBackground">@android:color/background_dark</item>
+        <!-- Icon to show (using default launcher for now) -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/transparent</item>
+        <!-- Theme to switch to after the splash screen finishes -->
+        <item name="postSplashScreenTheme">@style/Theme.GmailOtpSyncer</item>
+    </style>
+</resources>
