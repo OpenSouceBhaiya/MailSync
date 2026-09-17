@@ -325,13 +325,7 @@ class SettingsViewModel(
             setSyncEnabled(true)
             setAccountSyncEnabled(email, true)
             
-            // Only auto-switch to Ultimate Speed if this is the FIRST account ever added
-            // and the user had no choice but Notification mode before. Preserve mode otherwise.
-            if (wasFirstAccount && settingsManager.isNotificationOnlyModeEnabled()) {
-                setNotificationOnlyMode(false)
-                setBackendSyncEnabled(true)
-            }
-            
+
             updateFirebaseAccountName()
         }
     }
@@ -416,15 +410,6 @@ class SettingsViewModel(
         settingsManager.setClipboardCopyEnabled(enabled)
         _isClipboardCopyEnabled.value = enabled
     }
-    
-    private val _isAlwaysOnSyncEnabled = MutableStateFlow(settingsManager.isAlwaysOnSyncEnabled())
-    val isAlwaysOnSyncEnabled: StateFlow<Boolean> = _isAlwaysOnSyncEnabled.asStateFlow()
-
-    fun setAlwaysOnSyncEnabled(enabled: Boolean) {
-        settingsManager.setAlwaysOnSyncEnabled(enabled)
-        _isAlwaysOnSyncEnabled.value = enabled
-        // Service start/stop removed since polling is now fully integrated into NotificationListenerService
-    }
 
     private val _isBackendSyncEnabled = MutableStateFlow(settingsManager.isBackendSyncEnabled())
     val isBackendSyncEnabled: StateFlow<Boolean> = _isBackendSyncEnabled.asStateFlow()
@@ -444,13 +429,6 @@ class SettingsViewModel(
         checkForegroundServiceStatePublic()
     }
 
-    private val _isUniversalNotificationScan = MutableStateFlow(settingsManager.isUniversalNotificationScanEnabled())
-    val isUniversalNotificationScan: StateFlow<Boolean> = _isUniversalNotificationScan.asStateFlow()
-
-    fun setUniversalNotificationScan(enabled: Boolean) {
-        settingsManager.setUniversalNotificationScanEnabled(enabled)
-        _isUniversalNotificationScan.value = enabled
-    }
     
     fun checkForegroundServiceStatePublic() {
         val enabled = _isSyncEnabled.value
@@ -489,14 +467,6 @@ class SettingsViewModel(
     fun setHasSeenOnboarding(hasSeen: Boolean) {
         settingsManager.setHasSeenOnboarding(hasSeen)
         _hasSeenOnboarding.value = hasSeen
-    }
-    
-    private val _autoStopDelayMs = MutableStateFlow(settingsManager.getAutoStopDelayMs())
-    val autoStopDelayMs: StateFlow<Long> = _autoStopDelayMs.asStateFlow()
-
-    fun setAutoStopDelayMs(delayMs: Long) {
-        settingsManager.setAutoStopDelayMs(delayMs)
-        _autoStopDelayMs.value = delayMs
     }
 
     fun clearConfig() {

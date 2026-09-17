@@ -80,7 +80,7 @@ val onboardingPages = listOf(
     ),
     OnboardingPage(
         title = "Choose Sync Method",
-        description = "OTP Sync offers two modes. 'Ultimate Speed' links a Google account for instant Gmail API extraction. 'Notification Rely' is a local-only alternative — it reads device notifications from Gmail, SMS, WhatsApp, and more without needing any account login.",
+        description = "OTP Sync offers two modes. 'Ultimate Speed' links a Google account for instant Gmail API extraction.\n\nChoose 'No Account Mode' — zero login, zero data shared. OTPs from any app (SMS, WhatsApp, Gmail) are read locally from notifications.",
         icon = Icons.Default.AccountCircle,
         isSyncMethodPage = true
     )
@@ -525,7 +525,7 @@ fun OnboardingScreen(
                         border = androidx.compose.foundation.BorderStroke(1.dp, TextSecondary.copy(alpha = 0.5f)),
                         modifier = Modifier.fillMaxWidth(0.9f)
                     ) {
-                        Text("Notification Rely Mode (Local Only)", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text("No Account Mode (Local Only)", fontWeight = FontWeight.Medium, fontSize = 14.sp)
                     }
                 } else {
                     Button(

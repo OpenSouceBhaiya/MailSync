@@ -193,14 +193,6 @@ class SettingsManager(context: Context) {
     fun setHasSeenOnboarding(hasSeen: Boolean) {
         sharedPreferences.edit().putBoolean(KEY_HAS_SEEN_ONBOARDING, hasSeen).apply()
     }
-    
-    fun getAutoStopDelayMs(): Long {
-        return sharedPreferences.getLong(KEY_AUTO_STOP_DELAY, 15 * 60 * 1000L) // Default 15 minutes
-    }
-    
-    fun setAutoStopDelayMs(delayMs: Long) {
-        sharedPreferences.edit().putLong(KEY_AUTO_STOP_DELAY, delayMs).apply()
-    }
 
     fun isInstantSyncEnabled(): Boolean {
         return sharedPreferences.getBoolean("instant_sync_enabled", true)
@@ -225,14 +217,6 @@ class SettingsManager(context: Context) {
     fun setClipboardCopyEnabled(enabled: Boolean) {
         sharedPreferences.edit().putBoolean("clipboard_copy_enabled", enabled).apply()
     }
-    
-    fun isAlwaysOnSyncEnabled(): Boolean {
-        return sharedPreferences.getBoolean("always_on_sync_enabled", true)
-    }
-
-    fun setAlwaysOnSyncEnabled(enabled: Boolean) {
-        sharedPreferences.edit().putBoolean("always_on_sync_enabled", enabled).apply()
-    }
 
     fun isBackendSyncEnabled(): Boolean {
         return sharedPreferences.getBoolean("backend_sync_enabled", true)
@@ -248,14 +232,6 @@ class SettingsManager(context: Context) {
 
     fun setNotificationOnlyModeEnabled(enabled: Boolean) {
         sharedPreferences.edit().putBoolean("notification_only_mode_enabled", enabled).apply()
-    }
-    
-    fun isUniversalNotificationScanEnabled(): Boolean {
-        return sharedPreferences.getBoolean("universal_notification_scan_enabled", false)
-    }
-
-    fun setUniversalNotificationScanEnabled(enabled: Boolean) {
-        sharedPreferences.edit().putBoolean("universal_notification_scan_enabled", enabled).apply()
     }
     
     // ── Linked Devices (PCs) ───────────────────────────────────────────────

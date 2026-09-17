@@ -15,7 +15,7 @@ object OtpExtractor {
         "your code", "security code", "access code", "login code", "sign-in code", 
         "sign in code", "enter this code", "enter the code", "use this code", 
         "code to sign in", "confirmation code", "auth code", "authentication code", 
-        "code is", "your pin", "passcode", "pin", "the code"
+        "code is", "your pin", "passcode", "pin", "the code", "temporary password"
     )
     
     // Footer boundaries for deprioritization
@@ -168,8 +168,12 @@ object OtpExtractor {
             // If it has letters and digits, require at least 2 digits to avoid tracking IDs
             if (letterCount > 0 && digitCount < 2) continue
             
-            // Reject candidates that are common English words (pure alpha, 4-5 chars — e.g. "from", "your", "code" itself)
-            if (digitCount == 0 && candidate.length <= 5 && candidate.all { it.isLetter() }) continue
+            // Ultra-good Alpha OTP Filtering:
+            // Pure alphabetical candidates MUST be fully uppercase (e.g., "ASDFGH").
+            // Normal lowercase/mixed-case words in sentences will be rejected to prevent false positives.
+            if (digitCount == 0) {
+                if (!candidate.all { it.isUpperCase() } || candidate.length < 5) continue
+            }
             
             var score = 0
             

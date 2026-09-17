@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -112,7 +114,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
             
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "OTP Syncer",
+                    text = "OTP Sync",
                     style = MaterialTheme.typography.headlineMedium,
                     color = TextPrimary,
                     fontWeight = FontWeight.Bold
@@ -153,9 +155,6 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
             Text("Sync & Permissions", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
             
-            val autoStopDelayMs by viewModel.autoStopDelayMs.collectAsState()
-            val currentMinutes = (autoStopDelayMs / (60 * 1000)).toInt()
-            
             var activeHighlight by remember { mutableStateOf(highlight) }
             LaunchedEffect(highlight) {
                 activeHighlight = highlight
@@ -177,105 +176,94 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
             
             val isInstantSyncEnabled by viewModel.isInstantSyncEnabled.collectAsState()
             val isClipboardCopyEnabled by viewModel.isClipboardCopyEnabled.collectAsState()
+            var canDrawOverlays = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true
             
-            val instantSyncHighlight = if ((activeHighlight == "instant_sync" || activeHighlight == "both") && (!isNotificationAccessGranted || !isInstantSyncEnabled)) highlightAlpha else 0f
-            val clipboardHighlight = if ((activeHighlight == "clipboard" || activeHighlight == "both") && (!canDrawOverlays || !isClipboardCopyEnabled)) highlightAlpha else 0f
-
+            val permissionsHighlight = if (activeHighlight != null) highlightAlpha else 0f
+            val allPermissionsGranted = isNotificationAccessGranted && canDrawOverlays
+            
+            // Permissions Card (Merged Instant Sync & Clipboard)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFE53935).copy(alpha = instantSyncHighlight))
-                    .padding(vertical = 12.dp, horizontal = 12.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (allPermissionsGranted) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color(0xFFE53935).copy(alpha = 0.15f + permissionsHighlight))
+                    .padding(16.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Notifications, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (allPermissionsGranted) Icons.Default.CheckCircle else Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = if (allPermissionsGranted) MaterialTheme.colorScheme.primary else Color(0xFFE53935),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Instant Sync Engine", fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("Required. Silently checks incoming emails and copies OTPs instantly.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text(
+                            text = "Background Engine",
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = if (allPermissionsGranted) "All permissions granted. Engine is running 24/7." else "Setup required to capture and copy OTPs.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
                     }
-                    Switch(
-                        checked = isInstantSyncEnabled && isNotificationAccessGranted,
-                        onCheckedChange = { isChecked ->
-                            if (isChecked) {
-                                if (!isNotificationAccessGranted) {
-                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                    } else {
-                                        val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
-                                        context.startActivity(intent)
-                                    }
-                                } else {
-                                    viewModel.setInstantSyncEnabled(true)
-                                }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Notification Permission
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        if (!isNotificationAccessGranted) {
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                             } else {
                                 val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
                                 context.startActivity(intent)
                             }
                         }
-                    )
-                }
-            }
-            
-            // Battery Note Moved Outside Row for Better Formatting
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 40.dp, end = 16.dp, bottom = 12.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                    .padding(12.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                    }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
-                        imageVector = Icons.Default.Warning,
+                        imageVector = if (isNotificationAccessGranted) Icons.Default.Check else Icons.Default.Close,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = if (isNotificationAccessGranted) MaterialTheme.colorScheme.primary else Color(0xFFE53935),
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "To preserve battery, the sync engine will automatically shut down after $currentMinutes minutes of inactivity (adjustable).",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        lineHeight = 14.sp
+                    Text("Notification Access", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
+                }
+                
+                // Overlay Permission
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        if (!canDrawOverlays) {
+                            val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
+                            context.startActivity(intent)
+                        }
+                    }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (canDrawOverlays) Icons.Default.Check else Icons.Default.Close,
+                        contentDescription = null,
+                        tint = if (canDrawOverlays) MaterialTheme.colorScheme.primary else Color(0xFFE53935),
+                        modifier = Modifier.size(16.dp)
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Appear on Top (Clipboard Copy)", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            
             val isBackendSyncEnabled by viewModel.isBackendSyncEnabled.collectAsState()
             val isNotificationOnlyMode by viewModel.isNotificationOnlyMode.collectAsState()
-            val isUniversalNotificationScan by viewModel.isUniversalNotificationScan.collectAsState()
             val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-
-            // ── Universal Notification Scan Toggle ──────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 0.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Notifications, contentDescription = null, tint = Color(0xFF00FFA3), modifier = Modifier.size(24.dp))
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Universal Notification Scan", style = MaterialTheme.typography.bodyMedium, color = TextPrimary, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                    Text(
-                        "Capture OTPs from SMS, WhatsApp, any app — not just Gmail",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
-                com.mailsync.app.ui.components.CustomToggle(
-                    checked = isUniversalNotificationScan,
-                    onCheckedChange = { viewModel.setUniversalNotificationScan(it) }
-                )
-            }
-
 
             val syncModeHighlightTriggered by viewModel.highlightSyncMode.collectAsState()
             val syncModeHighlightColor by androidx.compose.animation.animateColorAsState(
@@ -312,8 +300,6 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                                 .build()
                             val client = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
                             client.signOut().addOnCompleteListener {
-                                // Normally we'd use a launcher here, but we can't easily add one mid-composable
-                                // Just direct them to the accounts screen where they can sign in.
                                 onNavigateToAccounts()
                             }
                         }) {
@@ -334,9 +320,9 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                     .graphicsLayer(scaleX = syncModePulseScale, scaleY = syncModePulseScale)
                     .background(syncModeHighlightColor, shape = RoundedCornerShape(8.dp))
                     .fillMaxWidth()
-                    .padding(vertical = 16.dp, horizontal = 12.dp)
+                    .padding(vertical = 8.dp)
             ) {
-                Text("Sync Engine Mode", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+                Text("Sync Engine Mode", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp, start = 12.dp))
                 
                 // Mode 1: Ultimate Speed
                 val mode1Selected = !isNotificationOnlyMode && isBackendSyncEnabled
@@ -364,8 +350,8 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Ultimate Speed (Recommended)", fontWeight = FontWeight.Bold, color = if (mode1Selected) MaterialTheme.colorScheme.primary else TextPrimary)
-                        Text("Requires Google Account. Uses both Backend API and Notifications for instant OTP syncing.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text("Ultimate Speed", fontWeight = FontWeight.Bold, color = if (mode1Selected) MaterialTheme.colorScheme.primary else TextPrimary)
+                        Text("Gmail API + Notifications. Fastest.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                     }
                 }
                 
@@ -396,7 +382,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Battery Saver", fontWeight = FontWeight.Bold, color = if (mode2Selected) MaterialTheme.colorScheme.primary else TextPrimary)
-                        Text("Requires Google Account. Disables API polling. Relies purely on Gmail app's push notifications.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text("Gmail Notifications only. No API polling.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                     }
                 }
                 
@@ -422,140 +408,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Local Notification Mode", fontWeight = FontWeight.Bold, color = if (mode3Selected) MaterialTheme.colorScheme.primary else TextPrimary)
-                        Text("No Google Account needed. Extracts OTPs from incoming app notifications on your device.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text("No Account Mode", fontWeight = FontWeight.Bold, color = if (mode3Selected) MaterialTheme.colorScheme.primary else TextPrimary)
+                        Text("Reads ALL notifications (SMS, WhatsApp, Gmail). No Google login needed.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                     }
                 }
             }
 
-            val isAlwaysOnSyncEnabled by viewModel.isAlwaysOnSyncEnabled.collectAsState()
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .padding(vertical = 12.dp, horizontal = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Computer, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                        Text("Always-On Background Sync", fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("Wakes phone when PC needs OTP, even if Gmail notifications are disabled. Uses slightly more battery.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    }
-                    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-                    Switch(
-                        checked = isAlwaysOnSyncEnabled,
-                        onCheckedChange = { isChecked ->
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            viewModel.setAlwaysOnSyncEnabled(isChecked)
-                        }
-                    )
-                }
-            }
-            
-            var canDrawOverlays = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFE53935).copy(alpha = clipboardHighlight))
-                    .padding(vertical = 12.dp, horizontal = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Notifications, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                        Text("Background Clipboard Copy", fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("Required to magically copy OTPs while you are using other apps (Appear on Top).", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    }
-                    Switch(
-                        checked = isClipboardCopyEnabled && canDrawOverlays,
-                        onCheckedChange = { isChecked ->
-                            if (isChecked) {
-                                if (!canDrawOverlays) {
-                                    val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
-                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
-                                        try {
-                                            val intent = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                                data = android.net.Uri.parse("package:${context.packageName}")
-                                            }
-                                            batteryOptLauncher.launch(intent)
-                                        } catch (e: Exception) {
-                                            // Fallback if battery intent fails
-                                            val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
-                                            context.startActivity(intent)
-                                        }
-                                    } else {
-                                        val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
-                                        context.startActivity(intent)
-                                    }
-                                } else {
-                                    viewModel.setClipboardCopyEnabled(true)
-                                }
-                            } else {
-                                val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
-                                context.startActivity(intent)
-                            }
-                        }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Auto-Stop Timer Settings
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Notifications, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Auto-pause syncing", fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("Background engine will stop after ${currentMinutes.toInt()} minutes of inactivity.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    val options = listOf(5, 10, 20, 30)
-                    options.forEach { minutes ->
-                        val isSelected = currentMinutes == minutes
-                        val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else com.mailsync.app.ui.theme.DarkSurfaceVariant,
-                            modifier = Modifier
-                                .clickable {
-                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                    viewModel.setAutoStopDelayMs((minutes * 60 * 1000).toLong())
-                                }
-                                .padding(4.dp)
-                        ) {
-                            Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (isSelected) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                }
-                                Text(
-                                    text = "${minutes}m",
-                                    color = if (isSelected) Color.White else TextPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -650,7 +508,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
             
             SettingsItem(
                 title = "Report a Bug",
-                subtitle = "Help us improve MailSync",
+                subtitle = "Help us improve OTP Sync",
                 icon = Icons.Default.BugReport,
                 modifier = Modifier
                     .graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)
@@ -690,7 +548,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                   }
                   Spacer(modifier = Modifier.height(4.dp))
                   Text(
-                      text = "MailSync v${com.mailsync.app.BuildConfig.VERSION_NAME}",
+                      text = "OTP Sync v${com.mailsync.app.BuildConfig.VERSION_NAME}",
                       style = MaterialTheme.typography.bodySmall,
                       color = TextSecondary
                   )

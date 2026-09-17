@@ -103,32 +103,21 @@ class OtpNotificationListenerService : NotificationListenerService() {
         }
     }
     
-    private var lastDeepIdleSyncMs = 0L
-
     private fun startPollingLoop() {
         pollingJob = scope.launch {
             val firebaseManager = com.mailsync.app.data.FirebaseManager()
             val repository = com.mailsync.app.data.OtpRepository(this@OtpNotificationListenerService, settingsManager, firebaseManager)
             while (isActive) {
                 try {
-                    // Smart polling: Only pull hard if a PC is actively on a login page OR Always On is enabled
-                    val isAlwaysOn = settingsManager.isAlwaysOnSyncEnabled()
-                    val autoStopDelayMs = settingsManager.getAutoStopDelayMs()
-                    val idleTimeMs = System.currentTimeMillis() - com.mailsync.app.AppState.lastActiveTimeMs
+                    val isAnyDeviceLinked = settingsManager.getLinkedDevicesMetadata().isNotEmpty()
                     
                     // Smart Notification Filter: Skip sync cycle if sync is disabled or no accounts configured
                     val hasEnabledAccounts = settingsManager.getConnectedAccounts().any { email ->
                         !settingsManager.getDisabledSyncAccounts().any { it.equals(email, ignoreCase = true) }
                     }
                     if (settingsManager.isSyncEnabled() && settingsManager.isConfigured() && hasEnabledAccounts) {
-                        if (isAnyPcLoginActive || isAlwaysOn || idleTimeMs <= autoStopDelayMs) {
+                        if (isAnyDeviceLinked) {
                             repository.syncWithBackend()
-                        } else {
-                            val now = System.currentTimeMillis()
-                            if (now - lastDeepIdleSyncMs > 15000) {
-                                repository.syncWithBackend()
-                                lastDeepIdleSyncMs = now
-                            }
                         }
                     }
                 } catch (e: Exception) {
@@ -137,15 +126,8 @@ class OtpNotificationListenerService : NotificationListenerService() {
                 
                 // Dynamic Ultra-Low Latency:
                 // 800ms if PC is actively on a login page (fastest mode)
-                // 1500ms if Always On is enabled
-                // 2000ms idle mode — still fast enough for real-time OTP delivery
-                val delayTime = if (isAnyPcLoginActive) {
-                    800L
-                } else if (settingsManager.isAlwaysOnSyncEnabled()) {
-                    1500L
-                } else {
-                    2000L // Never more than 2s — ensures backend OTPs arrive within 2-3s
-                }
+                // 2000ms idle mode if linked devices exist
+                val delayTime = if (isAnyPcLoginActive) 800L else 2000L
                 
                 checkAndSuggestLocalMode()
                 
@@ -186,18 +168,17 @@ class OtpNotificationListenerService : NotificationListenerService() {
         val disabledAccounts = settingsManager.getDisabledSyncAccounts()
         
         val isNotificationOnlyMode = settingsManager.isNotificationOnlyModeEnabled()
-        val isUniversalScan = settingsManager.isUniversalNotificationScanEnabled()
         
         // If an email is provided in the notification, ensure it's one we are tracking and it's not disabled.
-        // EXCEPTION: In notification-only mode OR universal scan mode, skip account filtering.
-        if (receivingEmail.isNotEmpty() && receivingEmail.contains("@") && !isNotificationOnlyMode && !isUniversalScan) {
+        // EXCEPTION: In notification-only mode (which implies universal scan), skip account filtering.
+        if (receivingEmail.isNotEmpty() && receivingEmail.contains("@") && !isNotificationOnlyMode) {
             val isTracked = connectedAccounts.any { it.equals(receivingEmail, ignoreCase = true) }
             val isDisabled = disabledAccounts.any { it.equals(receivingEmail, ignoreCase = true) }
             if (!isTracked || isDisabled) {
                 Log.d("OtpNotification", "Ignored OTP notification for un-tracked or disabled email: $receivingEmail")
                 return
             }
-        } else if (!isNotificationOnlyMode && !isUniversalScan) {
+        } else if (!isNotificationOnlyMode) {
             // Fallback: If Gmail doesn't provide the subText email, don't drop it.
             // Just check if there are ANY enabled accounts. If all are disabled, ignore.
             val anyEnabled = connectedAccounts.any { acc -> !disabledAccounts.any { it.equals(acc, ignoreCase = true) } }
