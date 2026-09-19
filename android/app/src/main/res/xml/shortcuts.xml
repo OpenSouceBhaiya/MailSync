@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
-        android:shortcutId="scan_background"
+        android:shortcutId="contact_us"
         android:enabled="true"
-        android:icon="@drawable/ic_shortcut_scan"
-        android:shortcutShortLabel="@string/shortcut_scan_bg_short"
-        android:shortcutLongLabel="@string/shortcut_scan_bg_long">
+        android:icon="@drawable/ic_shortcut_info"
+        android:shortcutShortLabel="@string/shortcut_contact_short"
+        android:shortcutLongLabel="@string/shortcut_contact_long">
         <intent
             android:action="android.intent.action.VIEW"
             android:targetPackage="com.mailsync.app"
-            android:targetClass="com.mailsync.app.ui.BackgroundScanActivity" />
-        <categories android:name="android.shortcut.conversation" />
+            android:targetClass="com.mailsync.app.MainActivity"
+            android:data="gmailotpsyncer://contact" />
     </shortcut>
 
     <shortcut

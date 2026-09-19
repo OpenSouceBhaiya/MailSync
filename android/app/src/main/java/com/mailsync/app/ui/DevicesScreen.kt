@@ -40,7 +40,6 @@ data class LinkedDevice(
 fun DevicesScreen(
     onNavigateBack: () -> Unit,
     onNavigateToScanner: () -> Unit,
-    onNavigateToAccounts: () -> Unit,
     viewModel: SettingsViewModel
 ) {
     val devices by viewModel.linkedDevices.collectAsState()
@@ -157,7 +156,7 @@ fun DevicesScreen(
                         
                         val localUriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                         Button(
-                            onClick = { localUriHandler.openUri("https://opensourcebhaiya.online/apps/mailsync") },
+                            onClick = { localUriHandler.openUri("https://www.opensourcebhaiya.online/apps/otpsync") },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FFA3), contentColor = Color.Black),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(56.dp)

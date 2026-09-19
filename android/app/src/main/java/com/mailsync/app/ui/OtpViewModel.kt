@@ -69,7 +69,7 @@ class OtpViewModel(
         if (_isSyncing.value) return
         viewModelScope.launch {
             if (settingsManager.isSyncEnabled()) {
-                fetchOtpsSilent()
+                fetchOtps()
             }
         }
     }
@@ -78,47 +78,12 @@ class OtpViewModel(
         if (_isSyncing.value) return
         _uiState.value = OtpUiState.Loading
         viewModelScope.launch {
-            if (settingsManager.isSyncEnabled()) {
-                fetchOtpsSilent()
+            if (!settingsManager.isSyncEnabled()) {
+                _uiState.value = OtpUiState.Error("Notification Engine is currently paused.")
             } else {
-                _uiState.value = OtpUiState.Error("Sync is currently paused.")
-            }
-        }
-    }
-
-    private suspend fun fetchOtpsSilent() {
-        try {
-            _isSyncing.value = true
-            
-            // Guaranteed visual delay so the UI reload animation has time to play
-            val syncStartTime = System.currentTimeMillis()
-            val newOtps = repository.syncWithBackend()
-            val elapsed = System.currentTimeMillis() - syncStartTime
-            if (elapsed < 800) {
-                kotlinx.coroutines.delay(800 - elapsed)
-            }
-            
-            // Auto-copy newly fetched OTP to clipboard
-            if (newOtps.isNotEmpty()) {
-                val latestNew = newOtps.maxByOrNull { it.receivedAt }
-                if (latestNew != null) {
-                    val fiveMinutesAgo = System.currentTimeMillis() - (5 * 60 * 1000)
-                    if (latestNew.receivedAt > fiveMinutesAgo) {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("OTP", latestNew.code)
-                        clipboard.setPrimaryClip(clip)
-                    }
-                    // We shouldn't show Toast in background often, but for manual fetch it's okay.
-                }
-            }
-        } catch (e: Exception) {
-            _lastScanTime.value = System.currentTimeMillis()
-            if (_uiState.value !is OtpUiState.Success) {
-                _uiState.value = OtpUiState.Error(e.message ?: "Network error occurred")
-            }
-        } finally {
-            _isSyncing.value = false
-            if (_uiState.value is OtpUiState.Loading) {
+                _isSyncing.value = true
+                kotlinx.coroutines.delay(800) // Visual effect
+                _isSyncing.value = false
                 val latest = repository.fetchLatestOtp()
                 if (latest != null) {
                     _uiState.value = OtpUiState.Success(latest)

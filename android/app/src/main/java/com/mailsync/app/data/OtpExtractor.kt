@@ -238,31 +238,61 @@ object OtpExtractor {
     private fun extractExpiry(text: String, receivedTimeMs: Long): Long? {
         val patterns = listOf(
             // "expires in X minutes/hours/seconds"
-            Regex("(?i)expir(?:es?|ed|ing)\\s+in\\s+(\\d+)\\s*(second|sec|minute|min|hour|hr)s?"),
+            Regex("(?i)expir(?:es?|ed|ing)\\s+in\\s+(\\d+)\\s*(second|sec|s|minute|min|m|hour|hr|h)s?"),
             // "valid for X minutes/hours/seconds"
-            Regex("(?i)valid\\s+for\\s+(\\d+)\\s*(second|sec|minute|min|hour|hr)s?"),
+            Regex("(?i)valid\\s+for\\s+(\\d+)\\s*(second|sec|s|minute|min|m|hour|hr|h)s?"),
             // "use/enter/verify within X minutes"
-            Regex("(?i)(?:use|enter|verify)\\s+(?:it\\s+)?within\\s+(\\d+)\\s*(second|sec|minute|min|hour|hr)s?"),
+            Regex("(?i)(?:use|enter|verify|redeem)\\s+(?:it\\s+)?within\\s+(\\d+)\\s*(second|sec|s|minute|min|m|hour|hr|h)s?"),
             // "OTP valid X min" (no 'for')
-            Regex("(?i)(?:otp|code|pin)\\s+(?:is\\s+)?valid\\s+(\\d+)\\s*(second|sec|minute|min|hour|hr)s?"),
+            Regex("(?i)(?:otp|code|pin)\\s+(?:is\\s+)?valid\\s+(\\d+)\\s*(second|sec|s|minute|min|m|hour|hr|h)s?"),
             // "X-minute OTP" / "X minute code"
-            Regex("(?i)(\\d+)[- ]*(second|sec|minute|min|hour|hr)s?\\s+(?:otp|code|pin|password)")
+            Regex("(?i)(\\d+)[- ]*(second|sec|s|minute|min|m|hour|hr|h)s?\\s+(?:otp|code|pin|password)"),
+            // "expires at HH:MM" or "valid till HH:MM"
+            Regex("(?i)(?:expires?\\s+at|valid\\s+(?:till|until))\\s+(\\d{1,2}):(\\d{2})"),
+            // "This code will expire in X minutes." (common India OTP pattern)
+            Regex("(?i)(?:this\\s+)?(?:code|otp|pin)\\s+(?:will\\s+)?(?:expire|expir)\\s+in\\s+(\\d+)\\s*(second|sec|s|minute|min|m|hour|hr|h)s?"),
+            // "Do not share. Valid for X minutes."
+            Regex("(?i)valid\\s+for\\s+(\\d+)\\s*(second|sec|s|minute|min|m|hour|hr|h)s?\\.?"),
+            // short form "5 mins" / "30 secs" after OTP context
+            Regex("(?i)\\b(\\d+)\\s*(mins?|secs?|hours?)\\b")
         )
+        
+        // For absolute "expires at HH:MM" — compute diff from current time
+        val absolutePattern = Regex("(?i)(?:expires?\\s+at|valid\\s+(?:till|until))\\s+(\\d{1,2}):(\\d{2})")
+        absolutePattern.find(text)?.let { match ->
+            try {
+                val hr = match.groupValues[1].toInt()
+                val min = match.groupValues[2].toInt()
+                val calendar = java.util.Calendar.getInstance()
+                calendar.set(java.util.Calendar.HOUR_OF_DAY, hr)
+                calendar.set(java.util.Calendar.MINUTE, min)
+                calendar.set(java.util.Calendar.SECOND, 0)
+                val expMs = calendar.timeInMillis
+                // Only use if it's in the future within 24h
+                val diffMs = expMs - receivedTimeMs
+                if (diffMs in 0L..86400000L) return expMs
+            } catch (e: Exception) { /* ignore */ }
+        }
+        
         for (pattern in patterns) {
             val match = pattern.find(text) ?: continue
             val amount = match.groupValues[1].toLongOrNull() ?: continue
             val unit = match.groupValues[2].lowercase()
             
             // Validation: Cap unreasonable expiry times
-            if (unit.startsWith("min") && amount > 60) continue
-            if ((unit.startsWith("hour") || unit.startsWith("hr")) && amount > 24) continue
+            if ((unit.startsWith("min") || unit == "m") && amount > 60) continue
+            if ((unit.startsWith("hour") || unit.startsWith("hr") || unit == "h") && amount > 24) continue
+            if ((unit.startsWith("sec") || unit == "s") && amount > 3600) continue
 
             val multiplier = when {
-                unit.startsWith("sec") -> 1000L
-                unit.startsWith("hour") || unit.startsWith("hr") -> 60 * 60 * 1000L
+                unit.startsWith("sec") || unit == "s" -> 1000L
+                unit.startsWith("hour") || unit.startsWith("hr") || unit == "h" -> 60 * 60 * 1000L
                 else -> 60 * 1000L
             }
-            return receivedTimeMs + (amount * multiplier)
+            val expiresAt = receivedTimeMs + (amount * multiplier)
+            // Sanity: never more than 24 hours from now
+            if (expiresAt - receivedTimeMs > 24 * 60 * 60 * 1000L) continue
+            return expiresAt
         }
         return null
     }

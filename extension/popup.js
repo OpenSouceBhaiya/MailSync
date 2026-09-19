@@ -102,7 +102,7 @@ function renderOtpHistory() {
     clearOtpHistoryTimers();
     chrome.storage.local.get(['otpHistory'], (data) => {
         const history = (data.otpHistory || []).filter(item => {
-            const exp = item.expiresAt || (item.time + 10 * 60 * 1000);
+            const exp = item.expiresAt || (item.time + 5 * 60 * 1000);
             return Date.now() < exp;
         });
         chrome.storage.local.set({ otpHistory: history });
@@ -123,7 +123,7 @@ function renderOtpHistory() {
 
             // Build timer pill element id so we can update it
             const timerId = `timer-${item.time}`;
-            const expiresAt = item.expiresAt || (item.time + 10 * 60 * 1000);
+            const expiresAt = item.expiresAt || (item.time + 5 * 60 * 1000);
             const initialCountdown = formatCountdown(expiresAt - Date.now());
 
             div.innerHTML = `
@@ -170,28 +170,7 @@ function renderOtpHistory() {
 
 // ─── Global Error Log ─────────────────────────────────────────────────────────
 function updateGlobalErrors() {
-    chrome.storage.local.get(['globalErrors'], (data) => {
-        const errors = data.globalErrors || [];
-        const section = document.getElementById('error-log-section');
-        const container = document.getElementById('error-log-list');
-        const bugHint = document.getElementById('bug-report-hint');
-        if (!section || !container) return;
-
-        if (errors.length === 0) {
-            section.classList.add('hidden');
-            if (bugHint) bugHint.classList.add('hidden');
-            return;
-        }
-        section.classList.remove('hidden');
-        if (bugHint) bugHint.classList.remove('hidden'); // Show "copy errors before reporting"
-        container.innerHTML = '';
-        errors.forEach(err => {
-            const div = document.createElement('div');
-            div.className = 'error-log-item';
-            div.innerHTML = `<span class="error-log-time">${new Date(err.time).toLocaleTimeString()}</span><span class="error-log-msg">${err.msg}</span>`;
-            container.appendChild(div);
-        });
-    });
+    // Disabled as per user request
 }
 
 // ─── Device Name Detection ────────────────────────────────────────────────────
@@ -228,41 +207,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         const fresh = (data.globalErrors || []).filter(e => Date.now() - e.time < TEN_MIN);
         chrome.storage.local.set({ globalErrors: fresh }, () => updateGlobalErrors());
     });
+    // Check for Extension Updates
+    try {
+        const res = await fetch(`https://raw.githubusercontent.com/OpenSouceBhaiya/MailSync/main/version.json?_t=${Date.now()}`);
+        const data = await res.json();
+        const currentVersion = chrome.runtime.getManifest().version;
+        // Basic version comparison assuming x.y format. E.g. "1.1" > "1.0"
+        if (data.extensionVersion && parseFloat(data.extensionVersion) > parseFloat(currentVersion)) {
+            hideAll();
+            document.getElementById('update-view').classList.remove('hidden');
+            return; // Stop initialization, force user to update
+        }
+    } catch (e) {
+        // Silent failure if network is unavailable or blocked
+    }
 
     // Wire up wave emoji button
     const waveBtn = document.getElementById('wave-btn');
     if (waveBtn) {
         waveBtn.addEventListener('click', playWave);
-    }
-
-    // Wire up Run Diagnostics button (removed - not public facing)
-
-    // Wire up error copy button
-    const copyErrBtn = document.getElementById('copy-errors-btn');
-    if (copyErrBtn) {
-        copyErrBtn.addEventListener('click', () => {
-            chrome.storage.local.get(['globalErrors'], (data) => {
-                const errors = data.globalErrors || [];
-                if (errors.length === 0) {
-                    copyErrBtn.textContent = '❌ No errors';
-                    setTimeout(() => { copyErrBtn.textContent = '📋 Copy'; }, 2000);
-                    return;
-                }
-                const text = errors.map(e => `[${new Date(e.time).toLocaleTimeString()}] ${e.msg}`).join('\n');
-                navigator.clipboard.writeText(text).then(() => {
-                    copyErrBtn.textContent = '✅ Copied!';
-                    setTimeout(() => { copyErrBtn.textContent = '📋 Copy'; }, 2000);
-                }).catch(() => {});
-            });
-        });
-    }
-
-    // Wire up error clear button
-    const clearErrBtn = document.getElementById('clear-errors-btn');
-    if (clearErrBtn) {
-        clearErrBtn.addEventListener('click', () => {
-            chrome.storage.local.set({ globalErrors: [] }, () => updateGlobalErrors());
-        });
     }
 
     // Offline indicator
@@ -328,7 +291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const data = await chrome.storage.local.get(['uuid']);
                     if (data.uuid) {
                         try {
-                            await fetch(`https://OTP Sync-osb-default-rtdb.asia-southeast1.firebasedatabase.app/devices/${data.uuid}.json`, {
+                            await fetch(`https://mailsync-osb-default-rtdb.asia-southeast1.firebasedatabase.app/devices/${data.uuid}.json`, {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ status: "terminated", syncEnabled: false })
@@ -361,7 +324,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function checkDeviceStatus(uuid) {
         try {
-            const res = await fetch(`https://OTP Sync-osb-default-rtdb.asia-southeast1.firebasedatabase.app/devices/${uuid}.json?_t=${Date.now()}`);
+            const res = await fetch(`https://mailsync-osb-default-rtdb.asia-southeast1.firebasedatabase.app/devices/${uuid}.json?_t=${Date.now()}`);
             const data = await res.json();
             if (!data || !data.dateLinked) {
                 showTerminatedView();
@@ -441,7 +404,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function hideAll() {
-        ['linked-view', 'terminated-view', 'paused-view', 'no-accounts-view', 'unlinked-view'].forEach(id => {
+        ['linked-view', 'terminated-view', 'paused-view', 'no-accounts-view', 'unlinked-view', 'update-view'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.add('hidden');
         });
@@ -470,7 +433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 pcName = await getDeviceName();
             }
 
-            const qrData = `https://opensourcebhaiya.online/apps/OTP Sync/connect?uuid=${encodeURIComponent(u)}&name=${encodeURIComponent(pcName)}&browser=Chrome&key=${encodeURIComponent(k)}`;
+            const qrData = `https://www.opensourcebhaiya.online/apps/otpsync/connect?uuid=${encodeURIComponent(u)}&name=${encodeURIComponent(pcName)}&browser=Chrome&key=${encodeURIComponent(k)}`;
 
             const canvas = document.getElementById('qr-code');
             new QRious({
@@ -525,7 +488,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let pollInterval;
     function pollForLink(uuid, aesKey) {
-        const firebaseUrl = `https://OTP Sync-osb-default-rtdb.asia-southeast1.firebasedatabase.app/devices/${uuid}.json`;
+        const firebaseUrl = `https://mailsync-osb-default-rtdb.asia-southeast1.firebasedatabase.app/devices/${uuid}.json`;
         if (pollInterval) clearInterval(pollInterval);
 
         pollInterval = setInterval(async () => {

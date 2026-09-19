@@ -47,33 +47,25 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.api.services.gmail.GmailScopes
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: OtpViewModel,
     historyViewModel: OtpHistoryViewModel,
-
     settingsViewModel: SettingsViewModel,
     onNavigateToSettings: (String?) -> Unit,
-    onNavigateToAccounts: (String?) -> Unit,
     onNavigateToScanner: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lastScanTime by viewModel.lastScanTime.collectAsState()
 
-    val accounts by settingsViewModel.accounts.collectAsState()
-    val disabledAccounts by settingsViewModel.disabledSyncAccounts.collectAsState()
-    val revokedAccounts by settingsViewModel.revokedAccounts.collectAsState()
-    val systemErrors by settingsViewModel.systemErrors.collectAsState()
     val isSyncEnabled by settingsViewModel.isSyncEnabled.collectAsState()
-    val isNotificationOnlyMode by settingsViewModel.isNotificationOnlyMode.collectAsState()
-    val allAccountsDisabled = accounts.isNotEmpty() && accounts.all { it in disabledAccounts }
-    val hasRevokedAccounts = accounts.any { it in revokedAccounts }
     val context = LocalContext.current
     val isNotificationAccessGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
     val canDrawOverlays = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) android.provider.Settings.canDrawOverlays(context) else true
-    val isTrulyActive = isSyncEnabled && (isNotificationOnlyMode || (accounts.isNotEmpty() && !allAccountsDisabled)) && isNotificationAccessGranted && canDrawOverlays
+    val isTrulyActive = isSyncEnabled && isNotificationAccessGranted && canDrawOverlays
     val historyState by historyViewModel.uiState.collectAsState()
     val allOtps = if (historyState is HistoryUiState.Success) {
         (historyState as HistoryUiState.Success).otps
@@ -98,60 +90,6 @@ fun HomeScreen(
     
     val _trigger = lifecycleTrigger // ensure recomposition on resume
     
-    var showBurst by remember { mutableStateOf(false) }
-    
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                if (settingsViewModel.isSyncEnabled.value && settingsViewModel.accounts.value.isNotEmpty()) {
-                    val startIntent = Intent(context, com.mailsync.app.service.OtpForegroundService::class.java)
-                    try {
-                        context.startService(startIntent)
-                    } catch (e: Exception) { }
-                }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-    
-    val googleSignInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-            if (account?.email != null) {
-                val hasScope = account.grantedScopes.any { it.scopeUri == GmailScopes.GMAIL_READONLY }
-                if (!hasScope) {
-                    com.mailsync.app.utils.ToastManager.show(context, "You must check the permission box to allow syncing!", android.widget.Toast.LENGTH_LONG)
-                    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
-                    GoogleSignIn.getClient(context, gso).signOut()
-                } else {
-                    settingsViewModel.addAccountEmail(account.email!!, account.displayName, account.serverAuthCode, context)
-                    showBurst = true
-                    val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        vibrator.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 50, 100, 50), -1))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        vibrator.vibrate(longArrayOf(0, 50, 100, 50), -1)
-                    }
-                }
-            }
-        } catch (e: com.google.android.gms.common.api.ApiException) {
-            com.mailsync.app.utils.ErrorReporter.reportApiException(context, e.statusCode, "HomeScreen")
-        } catch (e: Exception) {
-            com.mailsync.app.utils.ErrorReporter.reportError(context, e, "HomeScreen")
-        }
-    }
-
-    if (showBurst) {
-        CelebratoryBurst(onAnimationFinished = { showBurst = false })
-    }
-    
     val isInstantSyncEnabled by settingsViewModel.isInstantSyncEnabled.collectAsState()
     val isClipboardCopyEnabled by settingsViewModel.isClipboardCopyEnabled.collectAsState()
     
@@ -171,6 +109,80 @@ fun HomeScreen(
             showPermissionPrompt = true
         }
     }
+    
+    // ─── In-App Update Check ──────────────────────────────────────────────────
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var updateApkUrl by remember { mutableStateOf("") }
+    var latestVersion by remember { mutableStateOf("") }
+    
+    LaunchedEffect(Unit) {
+        // Only check once per session, delay slightly so UI renders first
+        kotlinx.coroutines.delay(3000)
+        try {
+            val url = java.net.URL("https://raw.githubusercontent.com/OpenSouceBhaiya/MailSync/main/version.json")
+            val json = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                url.readText()
+            }
+            val versionMatch = Regex("\"version\"\\s*:\\s*\"([^\"]+)\"").find(json)
+            val apkUrlMatch = Regex("\"apkUrl\"\\s*:\\s*\"([^\"]+)\"").find(json)
+            val remoteVersion = versionMatch?.groupValues?.get(1) ?: ""
+            val apkUrl = apkUrlMatch?.groupValues?.get(1) ?: ""
+            val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
+            if (remoteVersion.isNotEmpty() && remoteVersion != currentVersion && apkUrl.isNotEmpty()) {
+                latestVersion = remoteVersion
+                updateApkUrl = apkUrl
+                showUpdateDialog = true
+            }
+        } catch (e: Exception) {
+            // Silent — network not available, or file not found
+        }
+    }
+    
+    if (showUpdateDialog) {
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = Color(0xFFE2C4FF), modifier = Modifier.size(28.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Update Available!", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        "OTP Sync $latestVersion is out! 🎉",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE2C4FF)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "A new and improved version is ready for you. Update now to get the latest bug fixes, improvements, and new features.",
+                        color = Color.LightGray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showUpdateDialog = false
+                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(updateApkUrl))
+                        context.startActivity(intent)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE2C4FF))
+                ) {
+                    Text("Update Now", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = false }) {
+                    Text("Later", color = Color.LightGray)
+                }
+            },
+            containerColor = Color(0xFF1E1926)
+        )
+    }
+
     
     if (showPermissionPrompt) {
         AlertDialog(
@@ -199,10 +211,7 @@ fun HomeScreen(
 
             // Greeting
             item {
-                val firstAccount = accounts.firstOrNull()
-                val fullName = if (firstAccount != null) {
-                    settingsViewModel.getAccountName(firstAccount) ?: firstAccount.substringBefore("@")
-                } else null
+                val fullName = settingsViewModel.getManualUserName() ?: "User"
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -228,36 +237,9 @@ fun HomeScreen(
 
             // Removed state collections from here
 
-            if (hasRevokedAccounts) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0xFFE53935).copy(alpha = 0.15f))
-                            .padding(16.dp)
-                    ) {
-                        Column {
-                            Row(verticalAlignment = Alignment.Top) {
-                                Icon(Icons.Default.Warning, contentDescription = "Access Revoked", tint = Color(0xFFE53935))
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Action Required: Access Revoked", color = Color(0xFFE53935), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                    Text("Google has revoked access for one or more of your accounts. Syncing is paused for these accounts.", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = { onNavigateToAccounts(null) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Fix in Settings", color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
+
+            // Removed old revoked accounts banner (no accounts mode)
+
 
             if (needsClipboardPermission && needsNotificationPermission) {
                 item {
@@ -331,8 +313,8 @@ fun HomeScreen(
                                 Icon(Icons.Default.Info, contentDescription = "Info", tint = Color(0xFF4CAF50))
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("Notification Disabled", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                    Text("Please enable it as that helps us extract faster, but if you can't, no issues, the backend is working properly.", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                                    Text("Notification Access Disabled", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                    Text("Enable notification access so MailSync can intercept OTPs before they hit the notification panel.", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
                                 }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
@@ -348,83 +330,35 @@ fun HomeScreen(
                 }
             }
 
-            if (accounts.isNotEmpty() || isNotificationOnlyMode) {
-                if (!isSyncEnabled || allAccountsDisabled) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFFFFB020).copy(alpha = 0.15f))
-                                .padding(16.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Warning, contentDescription = "Action Required", tint = Color(0xFFFFB020))
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Action Required", color = Color(0xFFFFB020), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                    Text(if (allAccountsDisabled && !isNotificationOnlyMode) "All accounts are paused." else "Sync is disabled.", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
-                                }
-                                Button(
-                                    onClick = { 
-                                        if (allAccountsDisabled && !isNotificationOnlyMode) onNavigateToAccounts("accounts")
-                                        else settingsViewModel.setSyncEnabled(true)
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB020))
-                                ) {
-                                    Text("Fix", color = Color.Black, fontWeight = FontWeight.Bold)
-                                }
+
+            // Show a compact notification engine status if sync is disabled
+            if (!isSyncEnabled) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFFFB020).copy(alpha = 0.15f))
+                            .padding(16.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Warning, contentDescription = "Sync Disabled", tint = Color(0xFFFFB020))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Notification Engine Paused", color = Color(0xFFFFB020), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("Tap Fix to resume OTP capture from all apps.", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                            }
+                            Button(
+                                onClick = { settingsViewModel.setSyncEnabled(true) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB020))
+                            ) {
+                                Text("Fix", color = Color.Black, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
             }
 
-            if (accounts.isEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(32.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(if (isNotificationOnlyMode) Icons.Default.Check else Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(if (isNotificationOnlyMode) "Currently Relying on Notification" else "No Gmail account connected yet", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(if (isNotificationOnlyMode) "Connect a Google Account for faster syncing process." else "Connect an account to start syncing OTPs securely.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Button(
-                                onClick = { 
-                                    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
-                                    val activeNetwork = cm.activeNetwork
-                                    val capabilities = cm.getNetworkCapabilities(activeNetwork)
-                                    if (capabilities != null && (capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) || capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) || capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET))) {
-                                        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                                            .requestEmail()
-                                            .requestScopes(com.google.android.gms.common.api.Scope(GmailScopes.GMAIL_READONLY))
-                                            .requestServerAuthCode(context.getString(com.mailsync.app.R.string.web_client_id), true)
-                                            .build()
-                                        val client = GoogleSignIn.getClient(context, gso)
-                                        client.signOut().addOnCompleteListener {
-                                            googleSignInLauncher.launch(client.signInIntent)
-                                        }
-                                    } else {
-                                        com.mailsync.app.utils.ToastManager.show(context, "No internet connection available. Please connect to the internet to sign in.", android.widget.Toast.LENGTH_LONG)
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                            ) {
-                                Text("Connect Gmail Account", color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
             item {
                 val infiniteBgTransition = androidx.compose.animation.core.rememberInfiniteTransition()
                 val bgOffset by infiniteBgTransition.animateFloat(
@@ -485,9 +419,7 @@ fun HomeScreen(
                                 CustomToggle(
                                     checked = isTrulyActive,
                                     onCheckedChange = { isChecked ->
-                                        if (accounts.isEmpty() || allAccountsDisabled) {
-                                            com.mailsync.app.utils.ToastManager.show(context, "Please connect or enable an account first", android.widget.Toast.LENGTH_LONG)
-                                        } else if (isChecked && (needsNotificationPermission || needsClipboardPermission)) {
+                                        if (isChecked && (needsNotificationPermission || needsClipboardPermission)) {
                                             showPermissionPrompt = true
                                         } else {
                                             settingsViewModel.setSyncEnabled(isChecked)
@@ -509,66 +441,8 @@ fun HomeScreen(
                         
                         Text(lastOtpText, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Gmail connected: ${accounts.size} Accounts", color = Color(0xFFA1A1AA), fontSize = 14.sp)
+                        Text("Notification Engine Active", color = Color(0xFFA1A1AA), fontSize = 14.sp)
                     }
-                }
-            }
-
-            // System Error Logs UI
-            if (systemErrors.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Warning, contentDescription = "Errors", tint = MaterialTheme.colorScheme.error)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("System Logs / Bug Report", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 16.sp)
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("The system encountered issues in the background. Please report these errors to support.", color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 12.sp)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.Black.copy(alpha = 0.2f))
-                                    .padding(12.dp)
-                            ) {
-                                Column {
-                                    systemErrors.forEach { errorMsg ->
-                                        Text(errorMsg, color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                    }
-                                }
-                            }
-                            
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                TextButton(onClick = { com.mailsync.app.utils.ErrorReporter.clearErrors(context) }) {
-                                    Text("Clear Logs", color = MaterialTheme.colorScheme.error)
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    onClick = { 
-                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                        val clip = android.content.ClipData.newPlainText("Bug Report", systemErrors.joinToString("\n"))
-                                        clipboard.setPrimaryClip(clip)
-                                        com.mailsync.app.utils.ToastManager.show(context, "Logs copied! Paste this in your bug report.", android.widget.Toast.LENGTH_LONG)
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                ) {
-                                    Text("📋 Copy & Report Bug", color = MaterialTheme.colorScheme.onError)
-                                }
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
@@ -647,24 +521,7 @@ fun HomeScreen(
             ) {
                 Text("Select Action", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 Spacer(modifier = Modifier.height(8.dp))
-                
-                Surface(
-                    modifier = Modifier.fillMaxWidth().clickable {
-                        showAddMenu = false
-                        onNavigateToAccounts(null)
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF2D2938)
-                ) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "Manage Accounts", tint = Color(0xFF00FFA3), modifier = Modifier.size(32.dp))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text("Manage Accounts", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("Add or remove synced email addresses", color = Color.Gray, fontSize = 14.sp)
-                        }
-                    }
-                }
+
                 
                 Surface(
                     modifier = Modifier.fillMaxWidth().clickable {
@@ -825,7 +682,7 @@ fun OtpListItemFeed(otp: OtpEntity, context: Context) {
 
 @Composable
 fun WavingHandGreeting(fullName: String?) {
-    var isWaving by remember { mutableStateOf(false) }
+    var isWaving by remember { mutableStateOf(true) } // Auto-wave on launch
     var hasPlayedStartup by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val rotation = remember { androidx.compose.animation.core.Animatable(0f) }
     

@@ -110,6 +110,12 @@ fun AppNavigation(
                             }
                         }
                     }
+                    "contact" -> {
+                        navController.navigate("settings") {
+                            popUpTo(0)
+                        }
+                        settingsViewModel.triggerHighlightContactUs()
+                    }
                 }
                 // Clear the data to prevent re-triggering navigation on recomposition
                 currentIntent.data = null
@@ -127,8 +133,7 @@ fun AppNavigation(
             val showBottomBar = route != null && (
                 route.startsWith(Screen.Home.route) ||
                 route.startsWith(Screen.Inbox.route) ||
-                route.startsWith(Screen.Settings.route) ||
-                route.startsWith(Screen.Accounts.route)
+                route.startsWith(Screen.Settings.route)
             )
 
             if (showBottomBar) {
@@ -236,16 +241,7 @@ fun AppNavigation(
                     settingsViewModel = settingsViewModel
                 )
             }
-            composable("setup") {
-                SetupScreen(
-                    viewModel = settingsViewModel,
-                    onSetupComplete = {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo("setup") { inclusive = true }
-                        }
-                    }
-                )
-            }
+
             composable(Screen.Home.route) {
                 val hasSeenOnboarding by settingsViewModel.hasSeenOnboarding.collectAsState()
                 if (!hasSeenOnboarding) {
@@ -285,9 +281,6 @@ fun AppNavigation(
                     HomeScreen(viewModel = otpViewModel, historyViewModel = historyViewModel, settingsViewModel = settingsViewModel, onNavigateToSettings = { highlight ->
                         val route = if (highlight != null) "${Screen.Settings.route}?highlight=$highlight" else Screen.Settings.route
                         navController.navigate(route)
-                    }, onNavigateToAccounts = { highlight ->
-                        val route = if (highlight != null) "${Screen.Accounts.route}?highlight=$highlight" else Screen.Accounts.route
-                        navController.navigate(route)
                     }, onNavigateToScanner = {
                         navController.navigate("qr_scanner")
                     })
@@ -297,7 +290,7 @@ fun AppNavigation(
                 QRScannerScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onQrCodeScanned = { qrContent ->
-                        val isMailSync = qrContent.contains("mailsync/connect?uuid=") || qrContent.startsWith("mailsync://connect")
+                        val isMailSync = qrContent.contains("connect?uuid=") && qrContent.contains("&key=")
                         if (isMailSync) {
                             try {
                                 val uri = android.net.Uri.parse(qrContent)
@@ -341,9 +334,7 @@ fun AppNavigation(
                 })
             ) { backStackEntry ->
                 val highlight = backStackEntry.arguments?.getString("highlight")
-                SettingsScreen(viewModel = settingsViewModel, highlight = highlight, onNavigateToAccounts = {
-                    navController.navigate(Screen.Accounts.route)
-                }, onNavigateToDevices = {
+                SettingsScreen(viewModel = settingsViewModel, highlight = highlight, onNavigateToDevices = {
                     navController.navigate("devices")
                 })
             }
@@ -351,23 +342,10 @@ fun AppNavigation(
                 DevicesScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToScanner = { navController.navigate("qr_scanner") },
-                    onNavigateToAccounts = { navController.navigate(Screen.Accounts.route) },
                     viewModel = settingsViewModel
                 )
             }
-            composable(
-                route = Screen.Accounts.route + "?highlight={highlight}",
-                arguments = listOf(androidx.navigation.navArgument("highlight") { 
-                    type = androidx.navigation.NavType.StringType
-                    nullable = true 
-                    defaultValue = null
-                })
-            ) { backStackEntry ->
-                val highlight = backStackEntry.arguments?.getString("highlight")
-                AccountsScreen(viewModel = settingsViewModel, highlight = highlight, onNavigateBack = {
-                    navController.popBackStack()
-                })
-            }
+
         }
     }
 }
@@ -377,106 +355,166 @@ fun SplashScreen(onTimeout: () -> Unit) {
     var startAnimation by remember { mutableStateOf(false) }
     
     val quotes = listOf(
-        "Over 1.8 billion people use Gmail worldwide.",
-        "Gmail blocks 99.9% of spam, phishing, and malware.",
-        "Your OTPs are sensitive and should never be shared.",
-        "Gmail processes over 100 billion emails every day.",
-        "100% Private, everything runs locally on your device.",
-        "Enable 2FA on your Google Account for maximum security.",
-        "OTP Syncer never sends your emails to external servers.",
-        "Automated systems send millions of OTPs every single minute.",
-        "Security is a journey, not a destination.",
-        "Keep your device updated to ensure the best security.",
-        "OTP Syncer uses the official Google APIs for safety.",
-        "Google's advanced AI protects your inbox from threats.",
-        "Your data stays on your device, always.",
-        "We respect your privacy by doing all processing locally.",
-        "Fast, secure, and reliable OTP synchronization.",
-        "Never miss a login code again.",
+        "Automating the mundane to focus on the meaningful.",
         "Your workflow, uninterrupted.",
-        "Seamless connection between your phone and PC.",
-        "AES-256 encryption protects your data in transit.",
-        "Syncing securely via Firebase Realtime Database.",
-        "No more typing 6-digit codes manually.",
-        "Efficiency meets security.",
-        "Designed for professionals who value their time.",
-        "Copying your OTPs so you don't have to.",
-        "Automatically detecting codes in milliseconds.",
-        "Built with privacy-first architecture.",
-        "Open source technologies power the modern web.",
-        "Simplifying your 2FA experience.",
-        "The most secure way to handle your verification codes.",
-        "Zero-knowledge architecture keeps your data safe.",
-        "Protecting your digital identity, one OTP at a time.",
-        "Seamlessly bridging your mobile and desktop devices.",
-        "Empowering you with fast and secure logins.",
-        "Security is not just a feature, it's our foundation.",
-        "Experience the magic of instant OTP sync.",
-        "Say goodbye to manually retyping codes.",
-        "Your digital life, secured and simplified.",
-        "We believe in technology that works for you.",
-        "Trust is built through transparency and security.",
-        "Empowering productivity with secure automation.",
-        "The modern way to handle two-factor authentication.",
-        "Your security is our top priority.",
-        "Fast, frictionless, and secure by design.",
-        "Protecting your accounts with advanced encryption.",
-        "Seamless OTP delivery, right to your clipboard.",
-        "Focus on your work, we'll handle the OTPs.",
+        "Security is a process, not a product.",
+        "Efficiency is doing things right; effectiveness is doing the right things.",
+        "The best code is no code at all.",
+        "Simplicity is the soul of efficiency.",
+        "Don't repeat yourself. Let us do it for you.",
+        "Work smarter, not harder.",
+        "Time is your most valuable asset. Save it.",
+        "Focus on what matters. We'll handle the rest.",
+        "Productivity is being able to do things that you were never able to do before.",
+        "Every minute saved is a minute earned.",
+        "A tool is only as good as the time it saves.",
+        "Frictionless security for a seamless day.",
+        "Less typing, more doing.",
+        "Innovation is taking two things that exist and putting them together in a new way.",
+        "Streamlining your digital life.",
+        "Because you have better things to do than copy-paste.",
+        "Your attention is precious. Guard it.",
+        "Zero latency, infinite productivity.",
+        "The fewer moving parts, the better.",
+        "Stop context switching. Start achieving.",
+        "Flow state achieved.",
+        "Technology should work for you, not the other way around.",
+        "Empowering your digital journey.",
+        "Where security meets convenience.",
+        "The magic of automation at your fingertips.",
+        "Simplify, then automate.",
+        "Reclaim your focus.",
+        "Bridging the gap between devices.",
+        "Privacy first, productivity always.",
+        "Eliminating the bottlenecks in your day.",
+        "The future of workflow is automated.",
+        "Do more with less effort.",
+        "Your time is finite. Optimize it.",
         "Security that doesn't slow you down.",
-        "The smartest way to sync your verification codes.",
-        "Built for speed, engineered for security.",
-        "Your seamless login experience starts here.",
-        "Empowering secure connections across your devices.",
-        "The ultimate tool for managing your OTPs.",
-        "Security and convenience, perfectly balanced.",
-        "Your digital security, simplified.",
-        "Experience the future of two-factor authentication.",
-        "Fast, reliable, and always secure.",
-        "Your trusted companion for secure logins.",
-        "Seamlessly syncing your OTPs in real-time.",
-        "The intelligent way to manage your verification codes.",
-        "Empowering your digital life with secure automation.",
-        "Security you can trust, convenience you will love.",
-        "Your fast track to secure logins.",
-        "The elegant solution for two-factor authentication.",
-        "Seamlessly integrating security into your workflow.",
-        "Empowering you with fast, secure, and reliable OTP sync.",
-        "Your digital identity, protected and simplified.",
-        "The modern standard for secure OTP management.",
-        "Fast, frictionless, and incredibly secure.",
-        "Your seamless, secure login experience.",
-        "Empowering your digital journey with secure automation.",
-        "The intelligent, secure way to handle OTPs.",
-        "Security that works with you, not against you.",
-        "Your fast, reliable, and secure OTP companion.",
-        "Seamlessly bridging the gap between security and convenience.",
-        "Empowering you with the ultimate OTP sync experience.",
-        "Your digital life, secured with advanced encryption.",
-        "The smartest, most secure way to manage your codes.",
-        "Fast, reliable, and designed with your privacy in mind.",
-        "Your trusted solution for seamless secure logins.",
-        "Seamlessly syncing your OTPs with zero-knowledge architecture.",
-        "Empowering your productivity with secure, instant OTP delivery.",
-        "The modern, secure approach to two-factor authentication.",
-        "Security that empowers your digital lifestyle.",
-        "Your fast, secure, and reliable login companion.",
-        "Seamlessly integrating advanced security into your daily routine.",
-        "Empowering you with the tools for a secure digital life.",
-        "Your digital identity, safeguarded by cutting-edge encryption.",
-        "The intelligent, privacy-first way to manage your OTPs.",
-        "Fast, reliable, and uncompromisingly secure.",
-        "Your trusted partner for seamless, secure verification.",
-        "Seamlessly syncing your codes with unparalleled security.",
-        "Empowering your digital experience with secure, instant automation.",
-        "The modern, elegant solution for secure logins.",
-        "Security that enhances your workflow.",
-        "Your fast, secure, and intuitive OTP sync tool.",
-        "Seamlessly bridging your devices with robust security.",
-        "Empowering you to take control of your digital security.",
-        "Your digital life, protected by our privacy-first approach.",
-        "The smartest, most reliable way to handle your verification needs.",
-        "Fast, secure, and designed to simplify your life."
+        "Seamless integration, effortless operation.",
+        "The fastest way to get back to work.",
+        "Unlock your true potential.",
+        "Because manual data entry is so last decade.",
+        "Your digital assistant, always ready.",
+        "Speed is a feature.",
+        "Design is not just what it looks like, it's how it works.",
+        "The power of less.",
+        "Focus is saying no to a thousand good ideas.",
+        "Small optimizations lead to massive gains.",
+        "Work in the flow, stay in the zone.",
+        "The ultimate productivity hack.",
+        "Secure by design, fast by default.",
+        "Every keystroke saved is a victory.",
+        "Your workspace, synchronized.",
+        "Automate the routine, humanize the exception.",
+        "The invisible bridge between your devices.",
+        "Making the complex simple.",
+        "Productivity is a mindset, automation is the tool.",
+        "Stay focused, stay secure.",
+        "The smartest way to work.",
+        "Your digital ecosystem, harmonized.",
+        "Less friction, more action.",
+        "The elegance of a streamlined workflow.",
+        "Reinventing the way you connect.",
+        "Because your time is worth more.",
+        "The silent engine of your productivity.",
+        "Security without the hassle.",
+        "Automate to innovate.",
+        "The shortest path between thought and action.",
+        "Your workflow, optimized.",
+        "The joy of a frictionless experience.",
+        "Technology that gets out of your way.",
+        "Maximizing your output, minimizing your input.",
+        "The art of digital efficiency.",
+        "Seamlessly connecting your digital world.",
+        "Productivity unleashed.",
+        "The smart way to handle security.",
+        "Your daily dose of digital efficiency.",
+        "Automating the little things so you can focus on the big things.",
+        "The future is automated.",
+        "Your digital life, simplified.",
+        "The perfect balance of speed and security.",
+        "Empowering you to do your best work.",
+        "The seamless connection you've been waiting for.",
+        "Productivity is about working smarter.",
+        "The ultimate tool for the modern professional.",
+        "Security that empowers, rather than hinders.",
+        "Your workflow, supercharged.",
+        "The quiet power of automation.",
+        "Making your digital life easier, one OTP at a time.",
+        "The smart solution for a seamless day.",
+        "Your digital identity, protected and accessible.",
+        "The elegance of true efficiency.",
+        "Automate the boring stuff.",
+        "The fastest way to authenticate.",
+        "Your workspace, unified.",
+        "The invisible hand of productivity.",
+        "Security made simple.",
+        "The future of digital interaction.",
+        "Your daily workflow, perfected.",
+        "The seamless link between your devices.",
+        "Productivity, redefined.",
+        "The smart approach to security.",
+        "Your digital world, synchronized.",
+        "The art of working smarter.",
+        "Automating for a better tomorrow.",
+        "The silent partner in your success.",
+        "Your workflow, elevated.",
+        "The seamless experience you deserve.",
+        "Productivity is the engine of progress.",
+        "The smart way to stay secure.",
+        "Your digital life, optimized.",
+        "The elegant approach to authentication.",
+        "Automate, optimize, succeed.",
+        "The fastest path to productivity.",
+        "Your workspace, connected.",
+        "The invisible thread of efficiency.",
+        "Security that works for you.",
+        "The future of secure workflows.",
+        "Your daily tasks, simplified.",
+        "The seamless connection between your tools.",
+        "Productivity at the speed of thought.",
+        "The smart solution for digital security.",
+        "Your digital ecosystem, united.",
+        "The art of seamless integration.",
+        "Automating your path to success.",
+        "The silent force behind your productivity.",
+        "Your workflow, perfected.",
+        "The seamless transition between devices.",
+        "Productivity is the key to unlocking potential.",
+        "The smart way to handle authentication.",
+        "Your digital world, harmonized.",
+        "The elegant solution for a complex digital life.",
+        "Automate the trivial, focus on the vital.",
+        "The fastest way to securely connect.",
+        "Your workspace, seamlessly integrated.",
+        "The invisible bridge to higher productivity.",
+        "Security that enhances your day.",
+        "The future of seamless digital experiences.",
+        "Your daily workflow, optimized for success.",
+        "The seamless link that powers your day.",
+        "Productivity through intelligent automation.",
+        "The smart approach to digital identity.",
+        "Your digital life, effortlessly synchronized.",
+        "The art of frictionless security.",
+        "Automating for peak performance.",
+        "The silent enabler of your best work.",
+        "Your workflow, intelligently automated.",
+        "The seamless connection for the modern worker.",
+        "Productivity is doing more with less friction.",
+        "The smart way to bridge your devices.",
+        "Your digital world, securely united.",
+        "The elegant path to digital efficiency.",
+        "Automate your way to a clearer mind.",
+        "The fastest route to secure authentication.",
+        "Focus on the signal, ignore the noise.",
+        "Your workspace, effortlessly connected.",
+        "Security designed for the speed of business.",
+        "The invisible catalyst for your productivity.",
+        "Small automations yield massive time savings.",
+        "Eliminate friction. Maximize flow.",
+        "The art of working without interruption.",
+        "Your digital ecosystem, working in harmony."
     )
     val randomQuote = remember { quotes.random() }
     
@@ -508,7 +546,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
 
     LaunchedEffect(key1 = true) {
         startAnimation = true
-        kotlinx.coroutines.delay(2500) // Give them time to read the quote
+        kotlinx.coroutines.delay(3000) // Give them time to read the quote
         onTimeout()
     }
 

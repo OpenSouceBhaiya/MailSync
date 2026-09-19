@@ -95,26 +95,22 @@ class FirebaseManager {
      * Encrypt and send an OTP to all linked PCs that are actively waiting.
      * Returns true if the OTP was sent to at least one waiting PC.
      */
-    suspend fun broadcastOtp(otpCode: String, sender: String, activeDeviceKeys: Map<String, String>, expiresAt: Long): Boolean {
+    suspend fun broadcastOtp(otpCode: String, sender: String, activeDeviceKeys: Map<String, String>, expiresAt: Long, isPhoneInteractive: Boolean = false): Boolean {
+        if (activeDeviceKeys.isEmpty()) return false
+
+        val otpsRef = database.getReference("otps")
         val timestamp = System.currentTimeMillis()
         var sentToAnyPc = false
         
-        // Fetch the current state of all devices to check if they are waiting on a login page
-        val devicesSnapshot = try {
-            devicesRef.get().await()
-        } catch (e: Exception) {
-            Log.e("FirebaseManager", "Failed to fetch devices snapshot", e)
-            null
-        }
-        
-        // Phase 1: Find which devices are actively on a login page
+        // Phase 1: Query which active devices are currently on a login page
         val activeWaitingUuids = mutableSetOf<String>()
-        for ((uuid, _) in activeDeviceKeys) {
+        for (uuid in activeDeviceKeys.keys) {
             try {
-                if (devicesSnapshot != null) {
-                    val deviceData = devicesSnapshot.child(uuid)
-                    if (deviceData.exists()) {
-                        val extVersion = deviceData.child("extensionVersion").getValue(Int::class.java) ?: 1
+                val deviceData = devicesRef.child(uuid).get().await()
+                if (deviceData.exists()) {
+                    val status = deviceData.child("status").getValue(String::class.java)
+                    if (status != "terminated") {
+                        val extVersion = deviceData.child("extVersion").getValue(Int::class.java) ?: 1
                         val pcLoginActiveNode = deviceData.child("pcLoginActive")
                         if (extVersion >= 2 && pcLoginActiveNode.exists()) {
                             val isActive = pcLoginActiveNode.child("active").getValue(Boolean::class.java) == true
@@ -131,13 +127,11 @@ class FirebaseManager {
             }
         }
         
-        // Phase 2: Decide targets — if any PC is actively waiting, ONLY send to those PCs.
-        // If NO PC is actively on a login page, send to ALL (fallback for passive copy).
         val targetUuids = if (activeWaitingUuids.isNotEmpty()) {
             Log.d("FirebaseManager", "Smart routing: ${activeWaitingUuids.size} active PC(s) detected. Targeting only them.")
             activeWaitingUuids
         } else {
-            Log.d("FirebaseManager", "No active PC login pages detected. Broadcasting to ALL ${activeDeviceKeys.size} device(s).")
+            Log.d("FirebaseManager", "No active PC login pages detected. Broadcasting to ALL ${activeDeviceKeys.size} device(s) as fallback.")
             activeDeviceKeys.keys
         }
         

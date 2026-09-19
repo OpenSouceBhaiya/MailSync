@@ -35,7 +35,7 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.storage.local.get(['linked', 'uuid', 'aesKey'], async (data) => {
     if (data.linked && data.uuid && data.aesKey) {
         // Ping firebase to tell Android this is a v2 extension that supports pcLoginActive
-        fetch(`https://mailsync-osb-default-rtdb.asia-southeast1.firebasedatabase.app/devices/${data.uuid}/extensionVersion.json`, {
+        fetch(`https://mailsync-osb-default-rtdb.asia-southeast1.firebasedatabase.app/devices/${data.uuid}/extVersion.json`, {
             method: 'PUT',
             body: '2'
         }).catch(() => {});
@@ -422,11 +422,14 @@ async function handleEncryptedOtp(ivBase64, dataBase64, cryptoKey) {
             }
         });
 
-        // 5. In-page toast notification — send to all active tabs
-        chrome.tabs.query({ active: true }, (tabs) => {
-            if (!tabs || !tabs.length) return;
-
-            tabs.forEach(tab => {
+        // 5. In-page toast notification — send to active tab across ALL windows
+        chrome.windows.getAll({ populate: true }, (windows) => {
+            const allActiveTabs = [];
+            for (const win of windows) {
+                const activeTab = win.tabs && win.tabs.find(t => t.active);
+                if (activeTab) allActiveTabs.push(activeTab);
+            }
+            allActiveTabs.forEach(tab => {
                 if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://') || tab.url.startsWith('about:')) {
                     return;
                 }
@@ -439,6 +442,8 @@ async function handleEncryptedOtp(ivBase64, dataBase64, cryptoKey) {
                         try {
                             await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ["content.css"] });
                             await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
+                            // Small delay to allow content.js to initialize its message listener
+                            await new Promise(resolve => setTimeout(resolve, 200));
                             await chrome.tabs.sendMessage(tab.id, { action: "show_toast_and_copy", otp: otpCode, sender });
                         } catch (injectErr) { /* ignore restricted pages */ }
                     }

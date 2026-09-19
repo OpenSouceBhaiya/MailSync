@@ -127,7 +127,7 @@ class MainActivity : FragmentActivity() {
                                 Text("Steps to report:", fontWeight = FontWeight.Bold, color = Color.White)
                                 Text("1. Click 'Copy & Report' below", color = Color(0xFFA1A1AA))
                                 Text("2. Paste the log in our bug tracker", color = Color(0xFFA1A1AA))
-                                Text("3. You'll be redirected to: opensourcebhaiya.online/bug-report", color = Color(0xFFA1A1AA))
+                                Text("3. You'll be redirected to: www.opensourcebhaiya.online/bug-report", color = Color(0xFFA1A1AA))
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Box(modifier = Modifier.background(Color(0xFF2D2938), RoundedCornerShape(8.dp)).padding(8.dp).fillMaxHeight(0.3f)) {
                                     LazyColumn {
@@ -142,7 +142,7 @@ class MainActivity : FragmentActivity() {
                                 clipboard.setPrimaryClip(ClipData.newPlainText("Crash Log", lastCrash))
                                 com.mailsync.app.utils.ToastManager.show(context, "Crash log copied! Opening browser...", android.widget.Toast.LENGTH_SHORT)
                                 
-                                val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://opensourcebhaiya.online/bug-report"))
+                                val browserIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.opensourcebhaiya.online/bug-report"))
                                 context.startActivity(browserIntent)
                                 
                                 crashPrefs.edit().remove("last_crash").apply()

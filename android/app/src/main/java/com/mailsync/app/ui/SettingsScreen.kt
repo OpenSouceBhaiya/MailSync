@@ -22,11 +22,13 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,10 +44,12 @@ import com.mailsync.app.ui.theme.*
 import androidx.compose.material.icons.filled.Computer
 
 import com.google.api.services.gmail.GmailScopes
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNavigateToAccounts: () -> Unit, onNavigateToDevices: () -> Unit) {
+fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNavigateToDevices: () -> Unit) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
@@ -135,19 +139,11 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
             Spacer(modifier = Modifier.height(16.dp))
 
             SettingsItem(
-                title = "Connected Accounts",
-                subtitle = "Manage your Gmail accounts",
-                icon = Icons.Default.Email,
-                onClick = onNavigateToAccounts
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            SettingsItem(
                 title = "Linked PCs",
                 subtitle = "Manage active sessions & browser extensions",
                 icon = Icons.Default.Computer,
                 onClick = onNavigateToDevices
             )
-            
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -224,18 +220,25 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                                 val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
                                 context.startActivity(intent)
                             }
+                        } else {
+                            val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                            context.startActivity(intent)
                         }
                     }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = if (isNotificationAccessGranted) Icons.Default.Check else Icons.Default.Close,
-                        contentDescription = null,
-                        tint = if (isNotificationAccessGranted) MaterialTheme.colorScheme.primary else Color(0xFFE53935),
-                        modifier = Modifier.size(16.dp)
+                    Text("Notification Access", color = TextPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = isNotificationAccessGranted,
+                        onCheckedChange = null,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = Color.DarkGray
+                        ),
+                        modifier = Modifier.scale(0.8f)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Notification Access", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
                 }
                 
                 // Overlay Permission
@@ -244,176 +247,67 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                         if (!canDrawOverlays) {
                             val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
                             context.startActivity(intent)
+                        } else {
+                            val intent = Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
+                            context.startActivity(intent)
                         }
                     }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = if (canDrawOverlays) Icons.Default.Check else Icons.Default.Close,
-                        contentDescription = null,
-                        tint = if (canDrawOverlays) MaterialTheme.colorScheme.primary else Color(0xFFE53935),
-                        modifier = Modifier.size(16.dp)
+                    Text("Appear on Top (Clipboard Copy)", color = TextPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = canDrawOverlays,
+                        onCheckedChange = null,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = Color.DarkGray
+                        ),
+                        modifier = Modifier.scale(0.8f)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Appear on Top (Clipboard Copy)", color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            
-            val isBackendSyncEnabled by viewModel.isBackendSyncEnabled.collectAsState()
-            val isNotificationOnlyMode by viewModel.isNotificationOnlyMode.collectAsState()
-            val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
 
-            val syncModeHighlightTriggered by viewModel.highlightSyncMode.collectAsState()
-            val syncModeHighlightColor by androidx.compose.animation.animateColorAsState(
-                targetValue = if (syncModeHighlightTriggered) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent,
-                animationSpec = androidx.compose.animation.core.tween(400)
-            )
-            val syncModePulseScale by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = if (syncModeHighlightTriggered) 1.05f else 1f,
-                animationSpec = androidx.compose.animation.core.tween(400, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-            )
-            
-            LaunchedEffect(syncModeHighlightTriggered) {
-                if (syncModeHighlightTriggered) {
-                    kotlinx.coroutines.delay(2000)
-                    viewModel.clearHighlightSyncMode()
-                }
-            }
-            
-            val accounts by viewModel.accounts.collectAsState()
-            var showSignInPrompt by remember { mutableStateOf(false) }
-
-            if (showSignInPrompt) {
-                androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showSignInPrompt = false },
-                    title = { Text("Google Account Required") },
-                    text = { Text("This will only work when you add a Google Account.") },
-                    confirmButton = {
-                        androidx.compose.material3.TextButton(onClick = {
-                            showSignInPrompt = false
-                            val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN)
-                                .requestEmail()
-                                .requestScopes(com.google.android.gms.common.api.Scope(com.google.api.services.gmail.GmailScopes.GMAIL_READONLY))
-                                .requestServerAuthCode(context.getString(com.mailsync.app.R.string.web_client_id), true)
-                                .build()
-                            val client = com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso)
-                            client.signOut().addOnCompleteListener {
-                                onNavigateToAccounts()
-                            }
-                        }) {
-                            Text("Sign In")
-                        }
-                    },
-                    dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showSignInPrompt = false }) {
-                            Text("Cancel")
-                        }
-                    }
-                )
-            }
-
+            // Notification Engine Info Card
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .graphicsLayer(scaleX = syncModePulseScale, scaleY = syncModePulseScale)
-                    .background(syncModeHighlightColor, shape = RoundedCornerShape(8.dp))
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    .padding(16.dp)
             ) {
-                Text("Sync Engine Mode", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp, start = 12.dp))
-                
-                // Mode 1: Ultimate Speed
-                val mode1Selected = !isNotificationOnlyMode && isBackendSyncEnabled
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (mode1Selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
-                        .clickable {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            if (accounts.isEmpty()) {
-                                showSignInPrompt = true
-                            } else {
-                                viewModel.setNotificationOnlyMode(false)
-                                viewModel.setBackendSyncEnabled(true)
-                            }
-                        }
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.RadioButton(
-                        selected = mode1Selected,
-                        onClick = null,
-                        colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Ultimate Speed", fontWeight = FontWeight.Bold, color = if (mode1Selected) MaterialTheme.colorScheme.primary else TextPrimary)
-                        Text("Gmail API + Notifications. Fastest.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text(
+                            text = "Notification Engine Active",
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "Captures OTPs from SMS, WhatsApp, Gmail & all other apps automatically.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
                     }
                 }
-                
-                // Mode 2: Battery Saver
-                val mode2Selected = !isNotificationOnlyMode && !isBackendSyncEnabled
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (mode2Selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
-                        .clickable {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            if (accounts.isEmpty()) {
-                                showSignInPrompt = true
-                            } else {
-                                viewModel.setNotificationOnlyMode(false)
-                                viewModel.setBackendSyncEnabled(false)
-                            }
-                        }
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.RadioButton(
-                        selected = mode2Selected,
-                        onClick = null,
-                        colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Battery Saver", fontWeight = FontWeight.Bold, color = if (mode2Selected) MaterialTheme.colorScheme.primary else TextPrimary)
-                        Text("Gmail Notifications only. No API polling.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    }
-                }
-                
-                // Mode 3: Local Notification Mode
-                val mode3Selected = isNotificationOnlyMode
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (mode3Selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
-                        .clickable {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            viewModel.setNotificationOnlyMode(true)
-                            viewModel.setBackendSyncEnabled(false)
-                        }
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.RadioButton(
-                        selected = mode3Selected,
-                        onClick = null,
-                        colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("No Account Mode", fontWeight = FontWeight.Bold, color = if (mode3Selected) MaterialTheme.colorScheme.primary else TextPrimary)
-                        Text("Reads ALL notifications (SMS, WhatsApp, Gmail). No Google login needed.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    }
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "✓  Works without any Google account\n✓  Captures from any app sending OTPs\n✓  Zero latency — intercepted before you even see it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                )
             }
-
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -472,12 +366,37 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
             Text("Help & Support", style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             
+            val highlightContactUs by viewModel.highlightContactUs.collectAsState()
+            val highlightContactUsColor: Color by animateColorAsState(
+                targetValue = if (highlightContactUs) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                animationSpec = tween(durationMillis = 1000)
+            )
+            var highlightContactUsTriggered by remember { mutableStateOf(false) }
+            LaunchedEffect(highlightContactUs) {
+                if (highlightContactUs) {
+                    scrollState.animateScrollTo(10000)
+                    highlightContactUsTriggered = true
+                    kotlinx.coroutines.delay(400)
+                    highlightContactUsTriggered = false
+                    kotlinx.coroutines.delay(1600)
+                    viewModel.clearHighlightContactUs()
+                }
+            }
+            val contactUsPulseScale by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = if (highlightContactUsTriggered) 1.05f else 1f,
+                animationSpec = tween(400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                label = "contact_pulse_scale"
+            )
+
             SettingsItem(
                 title = "Contact Us",
-                subtitle = "Get in touch with support",
+                subtitle = "Get in touch with our support team",
                 icon = Icons.Default.Email,
+                modifier = Modifier
+                    .graphicsLayer(scaleX = contactUsPulseScale, scaleY = contactUsPulseScale)
+                    .background(highlightContactUsColor, shape = RoundedCornerShape(8.dp)),
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://opensourcebhaiya.online/contact"))
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.opensourcebhaiya.online/contact"))
                     context.startActivity(intent)
                 }
             )
@@ -514,7 +433,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                     .graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)
                     .background(highlightColor, shape = RoundedCornerShape(8.dp)),
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://opensourcebhaiya.online/bug-report"))
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.opensourcebhaiya.online/bug-report"))
                     context.startActivity(intent)
                 }
             )
@@ -528,7 +447,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                   Row(
                       verticalAlignment = Alignment.CenterVertically,
                       modifier = Modifier.clickable {
-                          val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://opensourcebhaiya.online"))
+                          val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.opensourcebhaiya.online"))
                           context.startActivity(intent)
                       }.padding(8.dp)
                   ) {
@@ -540,7 +459,7 @@ fun SettingsScreen(viewModel: SettingsViewModel, highlight: String? = null, onNa
                       )
                       Spacer(modifier = Modifier.width(6.dp))
                       Text(
-                          text = "opensourcebhaiya.online",
+                          text = "www.opensourcebhaiya.online",
                           style = MaterialTheme.typography.labelLarge,
                           color = MaterialTheme.colorScheme.primary,
                           fontWeight = FontWeight.Bold

@@ -268,7 +268,7 @@ fun QRScannerScreen(
 
         // Success Animation Overlay
         if (scannedValue != null) {
-            val isMailSync = scannedValue!!.contains("mailsync/connect?uuid=") || scannedValue!!.startsWith("mailsync://connect")
+            val isMailSync = scannedValue!!.contains("connect?uuid=") && scannedValue!!.contains("&key=")
             val isWebUrl = android.util.Patterns.WEB_URL.matcher(scannedValue!!).matches()
             
             LaunchedEffect(scannedValue) {

@@ -2,6 +2,8 @@
     <string name="app_name">OTP Sync</string>
     <string name="shortcut_scan_bg_short">Scan (Background)</string>
     <string name="shortcut_scan_bg_long">Scan silently in background</string>
-    <string name="shortcut_bug_short">Bugs or any issues?</string>
-    <string name="shortcut_bug_long">Let us know here!</string>
+    <string name="shortcut_contact_short">Contact Us</string>
+    <string name="shortcut_contact_long">Contact Support</string>
+    <string name="shortcut_bug_short">Report Bug</string>
+    <string name="shortcut_bug_long">Report a Bug / Issue</string>
 </resources>

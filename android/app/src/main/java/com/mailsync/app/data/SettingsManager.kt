@@ -108,6 +108,14 @@ class SettingsManager(context: Context) {
         return sharedPreferences.getString("account_name_$email", null)
     }
     
+    fun setManualUserName(name: String) {
+        sharedPreferences.edit().putString("manual_user_name", name).apply()
+    }
+    
+    fun getManualUserName(): String? {
+        return sharedPreferences.getString("manual_user_name", null)
+    }
+    
     fun setRefreshToken(email: String, token: String?) {
         if (token != null) {
             sharedPreferences.edit().putString("refresh_token_$email", token).apply()
@@ -134,6 +142,8 @@ class SettingsManager(context: Context) {
         }
         editor.apply()
     }
+
+
 
     fun getAccessToken(email: String): String? {
         val token = sharedPreferences.getString("access_token_$email", null) ?: return null
@@ -167,7 +177,8 @@ class SettingsManager(context: Context) {
     }
 
     fun isConfigured(): Boolean {
-        return getConnectedAccounts().isNotEmpty() || isNotificationOnlyModeEnabled()
+        // In notification-only mode, the app is always configured as long as it's been set up
+        return hasSeenOnboarding()
     }
 
     fun isBiometricLockEnabled(): Boolean {
@@ -227,11 +238,12 @@ class SettingsManager(context: Context) {
     }
     
     fun isNotificationOnlyModeEnabled(): Boolean {
-        return sharedPreferences.getBoolean("notification_only_mode_enabled", false)
+        // Always true — we are pure notification mode now
+        return true
     }
 
     fun setNotificationOnlyModeEnabled(enabled: Boolean) {
-        sharedPreferences.edit().putBoolean("notification_only_mode_enabled", enabled).apply()
+        // No-op — always notification only mode
     }
     
     // ── Linked Devices (PCs) ───────────────────────────────────────────────

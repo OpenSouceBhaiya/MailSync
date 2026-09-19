@@ -77,12 +77,6 @@ val onboardingPages = listOf(
         description = "Enable these features so OTP Sync can capture your codes instantly and auto-copy them while you use other apps.",
         icon = Icons.Default.Sync, 
         isSetupPage = true
-    ),
-    OnboardingPage(
-        title = "Choose Sync Method",
-        description = "OTP Sync offers two modes. 'Ultimate Speed' links a Google account for instant Gmail API extraction.\n\nChoose 'No Account Mode' — zero login, zero data shared. OTPs from any app (SMS, WhatsApp, Gmail) are read locally from notifications.",
-        icon = Icons.Default.AccountCircle,
-        isSyncMethodPage = true
     )
 )
 
@@ -121,39 +115,7 @@ fun OnboardingScreen(
         }
     )
     
-    var isCheckingGoogle by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    var googleErrorMsg by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    var showNotificationConfirmDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    
-    val googleSignInLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        isCheckingGoogle = false
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-            if (account?.email != null) {
-                val hasScope = account.grantedScopes.any { it.scopeUri == GmailScopes.GMAIL_READONLY }
-                if (!hasScope) {
-                    com.mailsync.app.utils.ToastManager.show(context, "You must check the permission box to allow syncing!", android.widget.Toast.LENGTH_LONG)
-                    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
-                    GoogleSignIn.getClient(context, gso).signOut()
-                } else {
-                    settingsViewModel.addAccountEmail(account.email!!, account.displayName, account.serverAuthCode, context)
-                    com.mailsync.app.utils.ToastManager.show(context, "Account added successfully!", android.widget.Toast.LENGTH_SHORT)
-                    onFinishOnboarding()
-                }
-            }
-        } catch (e: com.google.android.gms.common.api.ApiException) {
-            if (e.statusCode != 12501) { // 12501 is user cancelled
-                com.mailsync.app.utils.ErrorReporter.reportApiException(context, e.statusCode, "Onboarding")
-                googleErrorMsg = "Google Sign-In failed: Code ${e.statusCode}"
-            }
-        } catch (e: Exception) {
-            com.mailsync.app.utils.ErrorReporter.reportError(context, e, "Onboarding")
-            googleErrorMsg = "Google Sign-In failed: ${e.message}"
-        }
-    }
+    var showNameInputDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     
     Box(
         modifier = Modifier
@@ -489,43 +451,18 @@ fun OnboardingScreen(
                 Spacer(modifier = Modifier.height(32.dp))
 
                 if (pagerState.currentPage == onboardingPages.size - 1) {
-                    if (googleErrorMsg != null) {
-                        Text(googleErrorMsg!!, color = Color(0xFFE53935), fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
                     Button(
                         onClick = {
-                            isCheckingGoogle = true
-                            googleErrorMsg = null
-                            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                                .requestEmail()
-                                .requestScopes(com.google.android.gms.common.api.Scope(GmailScopes.GMAIL_READONLY))
-                                .requestServerAuthCode(context.getString(com.mailsync.app.R.string.web_client_id), true)
-                                .build()
-                            val client = GoogleSignIn.getClient(context, gso)
-                            client.signOut().addOnCompleteListener {
-                                googleSignInLauncher.launch(client.signInIntent)
-                            }
+                            settingsViewModel.setBackendSyncEnabled(false)
+                            settingsViewModel.setNotificationOnlyMode(true)
+                            showNameInputDialog = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp),
                         modifier = Modifier.fillMaxWidth(0.9f)
                     ) {
-                        Text("Add Google Account (Fastest Sync)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedButton(
-                        onClick = { 
-                            showNotificationConfirmDialog = true
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, TextSecondary.copy(alpha = 0.5f)),
-                        modifier = Modifier.fillMaxWidth(0.9f)
-                    ) {
-                        Text("No Account Mode (Local Only)", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text("Finish Setup", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     }
                 } else {
                     Button(
@@ -566,24 +503,47 @@ fun OnboardingScreen(
         }
     }
     
-    if (showNotificationConfirmDialog) {
+
+    if (showNameInputDialog) {
+        var nameInput by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showNotificationConfirmDialog = false },
-            title = { Text("Confirm Notification Mode") },
-            text = { Text("It will be delayed because it will rely on Gmail App notifications, but we are not forcing you. Do you want to confirm?") },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    showNotificationConfirmDialog = false
-                    settingsViewModel.setBackendSyncEnabled(false)
-                    settingsViewModel.setNotificationOnlyMode(true)
-                    onFinishOnboarding()
-                }) {
-                    Text("Confirm")
+            onDismissRequest = { /* don't dismiss on back — force a choice */ },
+            title = { 
+                Text("One last thing! 👋", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    Text(
+                        "What should we call you?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextPrimary
+                    )
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { if (it.length <= 30) nameInput = it },
+                        placeholder = { Text("Your name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "We'll use this to greet you in the app 🙂",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
                 }
             },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showNotificationConfirmDialog = false }) {
-                    Text("Cancel")
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    val trimmed = nameInput.trim()
+                    if (trimmed.isNotEmpty()) {
+                        settingsViewModel.setManualUserName(trimmed)
+                    }
+                    showNameInputDialog = false
+                    onFinishOnboarding()
+                }) {
+                    Text(if (nameInput.trim().isNotEmpty()) "Let's Go!" else "Skip")
                 }
             }
         )

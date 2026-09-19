@@ -1,0 +1,5 @@
+{
+  "version": "1.0",
+  "apkUrl": "https://github.com/OpenSouceBhaiya/MailSync/raw/main/Public%20Launch/OTP-Sync-v1.0.apk",
+  "releaseNotes": "OTP Sync v1.0 — Initial release. Supports Gmail, SMS, WhatsApp and all notification-based OTPs. PC sync via Chrome Extension."
+}

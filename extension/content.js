@@ -294,4 +294,3 @@ function showToast(otp, sender) {
     detectLoginPage();
     const observer = new MutationObserver(() => detectLoginPage());
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['type', 'class', 'style'] });
-}

@@ -197,10 +197,9 @@ class SettingsViewModel(
         // Write dateLinked to Firebase using viewModelScope — lifecycle-safe, won't be GC'd on navigation
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val firstAccount = accounts.value.firstOrNull()
-                val accountName = firstAccount?.let { getAccountName(it) }
+                val manualName = settingsManager.getManualUserName()
                 // This writes dateLinked to Firebase — the extension polls for this field
-                firebaseManager.linkDeviceMetadata(uuid, pcName, browser, accountName)
+                firebaseManager.linkDeviceMetadata(uuid, pcName, browser, manualName)
                 checkForegroundServiceStatePublic()
                 android.util.Log.d("SettingsViewModel", "linkDevice: Firebase write complete for uuid=$uuid")
             } catch (e: Exception) {
@@ -256,6 +255,17 @@ class SettingsViewModel(
 
     fun clearHighlightBugReport() {
         _highlightBugReport.value = false
+    }
+
+    private val _highlightContactUs = MutableStateFlow(false)
+    val highlightContactUs: StateFlow<Boolean> = _highlightContactUs.asStateFlow()
+
+    fun triggerHighlightContactUs() {
+        _highlightContactUs.value = true
+    }
+
+    fun clearHighlightContactUs() {
+        _highlightContactUs.value = false
     }
 
     private val _highlightSyncMode = MutableStateFlow(false)
@@ -365,6 +375,14 @@ class SettingsViewModel(
         checkForegroundServiceStatePublic()
         updateFirebaseAccountName()
     }
+    
+    fun getManualUserName(): String? {
+        return settingsManager.getManualUserName()
+    }
+    
+    fun setManualUserName(name: String) {
+        settingsManager.setManualUserName(name)
+    }
 
     private fun updateFirebaseAccountName() {
         val firstAccount = _accounts.value.firstOrNull()
@@ -432,19 +450,9 @@ class SettingsViewModel(
     
     fun checkForegroundServiceStatePublic() {
         val enabled = _isSyncEnabled.value
-        val connected = _accounts.value
-        val disabled = _disabledSyncAccounts.value
-        val allDisabled = connected.isEmpty() || connected.all { it in disabled }
-        val isLocalMode = settingsManager.isNotificationOnlyModeEnabled()
-        
-        val status = if (!isLocalMode && (!settingsManager.isConfigured() || connected.isEmpty())) {
-            "error_no_accounts"
-        } else if (!enabled || (allDisabled && !isLocalMode)) {
-            "paused"
-        } else {
-            "active"
-        }
-        
+        // In notification-only mode, the app is always "active" if sync is enabled
+        val status = if (!enabled) "paused" else "active"
+
         viewModelScope.launch {
             val uuids = _linkedDevices.value.map { it.id }
             if (uuids.isNotEmpty()) {

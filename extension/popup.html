@@ -112,6 +112,21 @@
             </div>
         </header>
 
+        <!-- Update Available View -->
+        <div id="update-view" class="view hidden" style="text-align:center; padding: 20px 0;">
+            <div style="background: linear-gradient(135deg, rgba(123, 97, 255, 0.15), rgba(0, 255, 163, 0.15)); border: 1px solid rgba(123, 97, 255, 0.3); border-radius: 12px; padding: 24px 16px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="url(#gradient)" stroke-width="2" style="margin-bottom:12px;">
+                    <defs><linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#00FFA3" /><stop offset="100%" stop-color="#7B61FF" /></linearGradient></defs>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <h3 style="color:#FFF; font-size:18px; margin:0 0 8px 0; font-weight:600;">Update Available!</h3>
+                <p style="color:#A1A1AA; font-size:13px; margin:0 0 16px 0; line-height:1.4;">A new version of OTP Sync is ready. Please download the latest update for improved speed and new features.</p>
+                <a href="https://opensourcebhaiya.online/" target="_blank" style="display:inline-block; background:linear-gradient(135deg, #7B61FF, #00FFA3); color:#120E17; font-weight:700; padding:10px 24px; border-radius:8px; text-decoration:none; width:100%; box-sizing:border-box;">Download Update</a>
+            </div>
+        </div>
+
         <!-- Unlinked State (QR Code) -->
         <div id="unlinked-view" class="view hidden">
             <h2>Link your Android</h2>
@@ -138,10 +153,10 @@
             <!-- Greeting with animated wave hand -->
             <div id="greeting-text" class="popup-greeting" style="display: flex; justify-content: center; align-items: center; width: 100%;">
                 <span class="wave-emoji-wrap" id="wave-btn" title="Click to wave!" style="margin-right: 8px;">
-                    <!-- Static emoji shown normally (matches the Noto style exactly) -->
-                    <img class="wave-static" id="wave-static" src="https://raw.githubusercontent.com/googlefonts/noto-emoji/main/png/128/emoji_u1f44b.png" width="28" height="28" alt="👋">
+                    <!-- Static emoji shown normally using native font -->
+                    <span class="wave-static" id="wave-static" style="font-size: 24px; line-height: 28px; display: inline-block;">👋</span>
                     <!-- Animated GIF shown only when waving — loaded lazily -->
-                    <img id="wave-animated" class="wave-animated" alt="" src="" width="28" height="28">
+                    <img id="wave-animated" class="wave-animated" alt="👋" width="28" height="28">
                 </span>
                 <div style="display: flex; flex-direction: column; justify-content: center; align-items: flex-start; overflow: hidden; padding-top: 2px; gap: 2px;">
                     <span class="greeting-time-part" id="greeting-time" style="line-height: 1.1; color: #FFFFFF; font-weight: 600;"></span>
@@ -201,24 +216,12 @@
             <button id="unlink-btn-no-account" class="danger-btn" style="margin-top: 16px;">Unlink PC</button>
         </div>
 
-        <!-- System Errors (hidden — only shown if background.js logs errors) -->
-        <div id="error-log-section" class="hidden error-log-wrapper">
-            <div class="error-log-header">
-                <span>⚠️ System Errors</span>
-                <button id="clear-errors-btn" class="error-clear-btn">Clear</button>
-            </div>
-            <div id="error-log-list" class="error-log-list"></div>
-            <div class="error-log-footer">
-                <span class="error-log-hint">Copy these and include them in your bug report.</span>
-                <button id="copy-errors-btn" class="error-copy-btn">📋 Copy</button>
-            </div>
-        </div>
 
         <!-- Help & Support -->
         <div class="help-support-section">
             <h3 class="help-support-title">Help &amp; Support</h3>
             
-            <a href="https://opensourcebhaiya.online/contact" target="_blank" class="help-link">
+            <a href="https://www.opensourcebhaiya.online/contact" target="_blank" class="help-link">
                 <div class="help-link-icon" style="background: rgba(0,255,163,0.1);">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00FFA3" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
                 </div>
@@ -228,7 +231,7 @@
                 </div>
             </a>
 
-            <a href="https://opensourcebhaiya.online/bug-report" target="_blank" class="help-link">
+            <a href="https://www.opensourcebhaiya.online/bug-report" target="_blank" class="help-link">
                 <div class="help-link-icon" style="background: rgba(255,68,68,0.1);">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                 </div>
@@ -237,11 +240,10 @@
                     <div class="help-link-sub">Help us improve OTP Sync</div>
                 </div>
             </a>
-            <p id="bug-report-hint" class="hidden" style="font-size:11px;color:#8E8A9F;margin:-4px 0 4px 12px;line-height:1.5;">&#8593; If you see errors above, copy them before clicking this.</p>
         </div>
         
         <div class="footer-credit">
-            Made with <span style="color: #FF4444;">❤️</span> by <a href="https://opensourcebhaiya.online/" target="_blank" style="color: inherit; text-decoration: none; font-weight: 600;">OpenSourceBhaiya</a>
+            Made with <span style="color: #FF4444;">❤️</span> by <a href="https://www.opensourcebhaiya.online/" target="_blank" style="color: inherit; text-decoration: none; font-weight: 600;">OpenSourceBhaiya</a>
         </div>
         
         <!-- Custom Confirm Modal -->
