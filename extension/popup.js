@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     // Check for Extension Updates
     try {
-        const res = await fetch(`https://raw.githubusercontent.com/OpenSouceBhaiya/MailSync/main/version.json?_t=${Date.now()}`);
+        const res = await fetch(`https://raw.githubusercontent.com/OpenSouceBhaiya/OtpSync/main/version.json?_t=${Date.now()}`);
         const data = await res.json();
         const currentVersion = chrome.runtime.getManifest().version;
         // Basic version comparison assuming x.y format. E.g. "1.1" > "1.0"
